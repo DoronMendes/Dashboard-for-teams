@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Design tokens. Tailwind v4 is CSS-first: everything declared in @theme
+   becomes a utility (--color-board -> bg-board, --font-display -> font-display).
+
+   Direction: a patch bay. The page is a cool concrete board; each project is a
+   white panel bolted to it; each link is a labelled port with a status LED.
+   Colour is reserved almost entirely for category identity, because on this
+   screen the category IS the information.
+--------------------------------------------------------------------------- */
+@theme {
+  --color-board: #e8ecef;
+  --color-panel: #ffffff;
+  --color-ink: #0c1520;
+  --color-muted: #5a6875;
+  --color-hairline: #d6dee4;
+  --color-signal: #14367a;
+
+  /* Category identity — read as status LEDs, not decoration. */
+  --color-cat-environment: #0e9f6e;
+  --color-cat-docs: #7e5bef;
+  --color-cat-code: #2563eb;
+  --color-cat-logs: #d97706;
+  --color-cat-monitoring: #db2777;
+  --color-cat-other: #64748b;
+
+  --font-display: "Heebo", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Heebo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    direction: rtl;
+  }
+
+  body {
+    margin: 0;
+    background-color: #f8fafc;
+    color: var(--color-ink);
+    font-family: "Inter", "Heebo", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Keyboard focus stays visible everywhere; mouse clicks stay quiet. */
+  :focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  .scrollbar-none { scrollbar-width: none; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+}
+
+/* Midnight AI palette: blue-black depth, violet energy and cool cyan detail. */
+html.dark body {
+  background:
+    radial-gradient(circle at 18% -10%, rgb(99 102 241 / .18), transparent 34rem),
+    radial-gradient(circle at 92% 12%, rgb(6 182 212 / .10), transparent 30rem),
+    #070816;
+  color: #e8e9ff;
+}
+html.dark .bg-slate-950 { background-color: #08091a; }
+html.dark .bg-slate-50 { background-color: rgb(11 13 31 / .78); }
+html.dark .bg-white,
+html.dark [class~="bg-white/90"] {
+  background-color: rgb(17 19 43 / .88);
+  backdrop-filter: blur(18px);
+}
+html.dark .bg-slate-100 { background-color: #202346; }
+html.dark [class~="bg-slate-50/50"],
+html.dark [class~="bg-slate-50/80"] { background-color: rgb(13 16 38 / .68); }
+html.dark .border-slate-100 { border-color: rgb(110 116 194 / .14); }
+html.dark .border-slate-200 { border-color: rgb(129 140 248 / .24); }
+html.dark .text-slate-950,
+html.dark .text-slate-900 { color: #f5f3ff; }
+html.dark .text-slate-600,
+html.dark .text-slate-500 { color: #a8aed2; }
+html.dark .text-slate-400 { color: #858db7; }
+html.dark .bg-indigo-50 { background-color: rgb(99 102 241 / .14); }
+html.dark .bg-indigo-600 {
+  background-color: #6366f1;
+  background-image: linear-gradient(135deg, #7c3aed, #4f46e5 55%, #2563eb);
+}
+html.dark .text-indigo-500,
+html.dark .text-indigo-600,
+html.dark .text-indigo-700 { color: #a5b4fc; }
+html.dark .border-indigo-200 { border-color: rgb(129 140 248 / .35); }
+html.dark input,
+html.dark select { color: #eef2ff; }
+html.dark input::placeholder { color: #71799f; }
+html.dark option { background: #11132b; color: #eef2ff; }
+html.dark .shadow-sm,
+html.dark .shadow-md,
+html.dark .shadow-xl {
+  --tw-shadow-color: rgb(2 6 23 / .55);
+  box-shadow: 0 14px 38px -24px rgb(99 102 241 / .45), var(--tw-shadow);
+}
+html.dark ::selection { background: rgb(124 58 237 / .5); color: white; }
+.project-card-header { background: transparent; }
+.project-links-scroll { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+.project-links-scroll::-webkit-scrollbar { width: 5px; }
+.project-links-scroll::-webkit-scrollbar-track { background: transparent; }
+.project-links-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+.project-links-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+html.dark .workspace-sidebar { background: #0c0d1c; }
+html.dark .workspace-canvas { background: rgb(8 10 25 / .72); }
+html.dark .project-board > article { background-color: rgb(20 22 45 / .9); }
+html.dark .project-links-scroll { scrollbar-color: #4f5684 transparent; }
+html.dark .project-links-scroll::-webkit-scrollbar-thumb { background: #4f5684; }
+
+@utility label-mono {
+  font-family: var(--font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}

@@ -1,0 +1,207 @@
+"""Google and Microsoft OAuth 2.0 entry points and callbacks."""
+
+import secrets
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi.responses import RedirectResponse
+
+from app.api.deps import AuthSvc, CurrentUser, OAuthSvc
+from app.core.config import settings
+from app.core.exceptions import AccountAccessDeniedError
+from app.core.security import create_access_token
+from app.schemas.auth import TokenResponse, UserResponse
+from app.services.oauth import create_oauth_challenge
+
+router = APIRouter()
+
+
+def _cookie_name(provider: str, kind: str) -> str:
+    return f"oauth_{provider}_{kind}"
+
+
+def _cookie_path(provider: str) -> str:
+    return f"{settings.API_V1_PREFIX}/auth/{provider}"
+
+
+def _set_oauth_cookie(response: Response, provider: str, kind: str, value: str) -> None:
+    response.set_cookie(
+        key=_cookie_name(provider, kind),
+        value=value,
+        max_age=settings.OAUTH_STATE_TTL_SECONDS,
+        httponly=True,
+        secure=settings.OAUTH_COOKIE_SECURE,
+        samesite="lax",
+        path=_cookie_path(provider),
+    )
+
+
+def _delete_oauth_cookies(response: Response, provider: str) -> None:
+    for kind in ("state", "verifier", "response_mode"):
+        response.delete_cookie(
+            _cookie_name(provider, kind),
+            path=_cookie_path(provider),
+            secure=settings.OAUTH_COOKIE_SECURE,
+            httponly=True,
+            samesite="lax",
+        )
+
+
+def _start_login(provider: str, oauth: OAuthSvc, *, frontend: bool) -> RedirectResponse:
+    state_value, verifier, challenge = create_oauth_challenge()
+    authorization_url = oauth.authorization_url(
+        provider,
+        state=state_value,
+        challenge=challenge,
+    )
+    response = RedirectResponse(authorization_url, status_code=status.HTTP_302_FOUND)
+    _set_oauth_cookie(response, provider, "state", state_value)
+    _set_oauth_cookie(response, provider, "verifier", verifier)
+    _set_oauth_cookie(
+        response,
+        provider,
+        "response_mode",
+        "frontend" if frontend else "json",
+    )
+    return response
+
+
+async def _finish_login(
+    provider: str,
+    *,
+    request: Request,
+    response: Response,
+    oauth: OAuthSvc,
+    auth: AuthSvc,
+    code: str | None,
+    state_value: str | None,
+    provider_error: str | None,
+) -> TokenResponse | RedirectResponse:
+    expected_state = request.cookies.get(_cookie_name(provider, "state"))
+    verifier = request.cookies.get(_cookie_name(provider, "verifier"))
+    if (
+        not expected_state
+        or not state_value
+        or not secrets.compare_digest(expected_state, state_value)
+        or not verifier
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired OAuth state",
+        )
+    if provider_error:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"OAuth authorization failed: {provider_error}",
+        )
+    if not code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OAuth callback did not include an authorization code",
+        )
+
+    provider_token = await oauth.exchange_code(provider, code=code, verifier=verifier)
+    profile = await oauth.fetch_profile(provider, provider_token)
+    try:
+        user = await auth.find_or_create_user(profile)
+    except AccountAccessDeniedError:
+        if request.cookies.get(_cookie_name(provider, "response_mode")) == "frontend":
+            redirect = RedirectResponse(
+                f"{settings.FRONTEND_AUTH_CALLBACK_URL}#error=access_denied",
+                status_code=status.HTTP_302_FOUND,
+            )
+            _delete_oauth_cookies(redirect, provider)
+            return redirect
+        raise
+    access_token = create_access_token(user_id=user.id, email=user.email)
+    token_response = TokenResponse(
+        access_token=access_token,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        user=UserResponse.model_validate(user),
+    )
+    if request.cookies.get(_cookie_name(provider, "response_mode")) == "frontend":
+        fragment = urlencode(
+            {
+                "access_token": access_token,
+                "token_type": "bearer",
+                "expires_in": token_response.expires_in,
+            }
+        )
+        redirect = RedirectResponse(
+            f"{settings.FRONTEND_AUTH_CALLBACK_URL}#{fragment}",
+            status_code=status.HTTP_302_FOUND,
+        )
+        _delete_oauth_cookies(redirect, provider)
+        return redirect
+
+    _delete_oauth_cookies(response, provider)
+    return token_response
+
+
+@router.get("/google/login", summary="Start Google login")
+async def google_login(
+    oauth: OAuthSvc,
+    frontend: bool = Query(default=False),
+) -> RedirectResponse:
+    return _start_login("google", oauth, frontend=frontend)
+
+
+@router.get("/google/callback", response_model=TokenResponse, summary="Complete Google login")
+async def google_callback(
+    request: Request,
+    response: Response,
+    oauth: OAuthSvc,
+    auth: AuthSvc,
+    code: str | None = Query(default=None),
+    state_value: str | None = Query(default=None, alias="state"),
+    error: str | None = Query(default=None),
+) -> TokenResponse | RedirectResponse:
+    return await _finish_login(
+        "google",
+        request=request,
+        response=response,
+        oauth=oauth,
+        auth=auth,
+        code=code,
+        state_value=state_value,
+        provider_error=error,
+    )
+
+
+@router.get("/microsoft/login", summary="Start Microsoft login")
+async def microsoft_login(
+    oauth: OAuthSvc,
+    frontend: bool = Query(default=False),
+) -> RedirectResponse:
+    return _start_login("microsoft", oauth, frontend=frontend)
+
+
+@router.get(
+    "/microsoft/callback",
+    response_model=TokenResponse,
+    summary="Complete Microsoft login",
+)
+async def microsoft_callback(
+    request: Request,
+    response: Response,
+    oauth: OAuthSvc,
+    auth: AuthSvc,
+    code: str | None = Query(default=None),
+    state_value: str | None = Query(default=None, alias="state"),
+    error: str | None = Query(default=None),
+) -> TokenResponse | RedirectResponse:
+    return await _finish_login(
+        "microsoft",
+        request=request,
+        response=response,
+        oauth=oauth,
+        auth=auth,
+        code=code,
+        state_value=state_value,
+        provider_error=error,
+    )
+
+
+@router.get("/me", response_model=UserResponse, summary="Get the authenticated user")
+async def get_me(current_user: CurrentUser) -> UserResponse:
+    return UserResponse.model_validate(current_user)
