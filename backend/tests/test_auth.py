@@ -2,12 +2,13 @@ import asyncio
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+import httpx
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.api.deps import get_current_user, get_oauth_service
 from app.core.config import settings
-from app.core.exceptions import AccountAccessDeniedError
+from app.core.exceptions import AccountAccessDeniedError, OAuthProviderError
 from app.core.security import create_access_token, decode_access_token
 from app.main import app
 from app.models.link import Link
@@ -15,7 +16,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.models.collaboration import Workspace, WorkspaceMembership
 from app.services.auth import AuthService
-from app.services.oauth import OAuthProfile
+from app.services.oauth import OAuthProfile, OAuthService
 from tests.conftest import make_test_engine
 
 
@@ -42,6 +43,65 @@ def test_me_returns_authenticated_user(client: TestClient) -> None:
     response = client.get("/api/v1/auth/me")
     assert response.status_code == 200
     assert response.json()["email"] == "test@example.com"
+
+
+def test_personal_ui_preferences_are_saved_on_authenticated_user(client: TestClient) -> None:
+    response = client.put(
+        "/api/v1/auth/me/preferences",
+        json={
+            "theme": "dark",
+            "direction": "ltr",
+            "view_mode": "list",
+            "sidebar_collapsed": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["theme"] == "dark"
+    assert response.json()["sidebar_collapsed"] is True
+    current = client.get("/api/v1/auth/me").json()
+    assert current["direction"] == "ltr"
+    assert current["view_mode"] == "list"
+
+
+@pytest.mark.asyncio
+async def test_oauth_exchange_preserves_safe_google_error_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "client-id")
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "client-secret")
+
+    async def fake_post(self, url, *, data):  # noqa: ANN001
+        assert data["code_verifier"] == "verifier"
+        request = httpx.Request("POST", url)
+        return httpx.Response(
+            400,
+            request=request,
+            json={"error": "invalid_grant", "error_description": "Bad Request"},
+        )
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+
+    with pytest.raises(OAuthProviderError, match="invalid_grant — Bad Request"):
+        await OAuthService().exchange_code("google", code="expired", verifier="verifier")
+
+
+def test_google_authorization_sends_pkce(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "client-id")
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "client-secret")
+
+    query = parse_qs(
+        urlparse(
+            OAuthService().authorization_url(
+                "google", state="state", challenge="unused-challenge"
+            )
+        ).query
+    )
+
+    assert query["code_challenge"] == ["unused-challenge"]
+    assert query["code_challenge_method"] == ["S256"]
 
 
 def test_google_frontend_flow_redirects_with_application_token(
@@ -73,7 +133,7 @@ def test_google_frontend_flow_redirects_with_application_token(
     app.dependency_overrides[get_oauth_service] = FakeOAuthService
     try:
         login = client.get(
-            "/api/v1/auth/google/login?frontend=true",
+            "/api/v1/auth/google/login?frontend=true&nonce=fresh-attempt",
             follow_redirects=False,
         )
         state = parse_qs(urlparse(login.headers["location"]).query)["state"][0]
@@ -85,6 +145,7 @@ def test_google_frontend_flow_redirects_with_application_token(
         app.dependency_overrides.pop(get_oauth_service, None)
 
     assert callback.status_code == 302
+    assert login.headers["cache-control"] == "no-store, max-age=0"
     redirect = urlparse(callback.headers["location"])
     assert f"{redirect.scheme}://{redirect.netloc}{redirect.path}" == (
         "http://localhost:5173/auth/callback"

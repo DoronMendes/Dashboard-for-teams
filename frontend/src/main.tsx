@@ -9,10 +9,6 @@ import { ToastProvider } from "@/components/feedback/Toast";
 import "@/index.css";
 import { queryClient } from "@/lib/queryClient";
 
-const initialTheme = localStorage.getItem("dashboard-theme") === "dark" ? "dark" : "light";
-document.documentElement.classList.toggle("dark", initialTheme === "dark");
-document.documentElement.style.colorScheme = initialTheme;
-
 const container = document.getElementById("root");
 if (!container) throw new Error("Root element #root is missing from index.html");
 

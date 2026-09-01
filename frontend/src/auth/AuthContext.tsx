@@ -15,8 +15,8 @@ import {
   storeAccessToken,
 } from "@/auth/tokenStorage";
 import { queryClient } from "@/lib/queryClient";
-import { getCurrentUser, getGoogleLoginUrl } from "@/services/api";
-import type { User } from "@/types";
+import { getCurrentUser, getGoogleLoginUrl, updateUserAvatar, updateUserPreferences } from "@/services/api";
+import type { User, UserPreferences } from "@/types";
 
 interface AuthContextValue {
   user: User | null;
@@ -25,6 +25,8 @@ interface AuthContextValue {
   loginWithGoogle: () => void;
   completeLogin: (accessToken: string) => Promise<void>;
   logout: () => void;
+  setAvatar: (avatar: string | null) => Promise<void>;
+  setPreferences: (preferences: UserPreferences) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -74,6 +76,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.assign(getGoogleLoginUrl());
   }, []);
 
+  const setAvatar = useCallback(async (avatar: string | null) => {
+    setUser(await updateUserAvatar(avatar));
+  }, []);
+
+  const setPreferences = useCallback(async (preferences: UserPreferences) => {
+    setUser(await updateUserPreferences(preferences));
+  }, []);
+
   const completeLogin = useCallback(
     async (accessToken: string) => {
       storeAccessToken(accessToken);
@@ -98,8 +108,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithGoogle,
       completeLogin,
       logout,
+      setAvatar,
+      setPreferences,
     }),
-    [user, isLoading, loginWithGoogle, completeLogin, logout],
+    [user, isLoading, loginWithGoogle, completeLogin, logout, setAvatar, setPreferences],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

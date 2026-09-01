@@ -26,11 +26,21 @@ class AuthService:
             if self.collaboration
             else []
         )
-        if not is_email_allowed(profile.email) and not invitations:
+        if not is_email_allowed(profile.email) and not invitations and self.collaboration is None:
+            raise AccountAccessDeniedError()
+        provider_user = await self.users.get_by_provider_id(profile.provider, profile.provider_id)
+        email_user = await self.users.get_by_email(profile.email)
+        known_user = provider_user or email_user
+        existing_memberships = (
+            await self.collaboration.memberships(known_user.id)
+            if self.collaboration and known_user is not None
+            else []
+        )
+        if not is_email_allowed(profile.email) and not invitations and not existing_memberships:
             raise AccountAccessDeniedError()
 
         provider_field = f"{profile.provider}_id"
-        user = await self.users.get_by_provider_id(profile.provider, profile.provider_id)
+        user = provider_user
 
         if user is not None:
             changes: dict[str, str] = {"name": profile.name}
@@ -42,7 +52,7 @@ class AuthService:
             user = await self.users.update(user, changes)
             return await self._accept_invitations(user, invitations)
 
-        user = await self.users.get_by_email(profile.email)
+        user = email_user
         if user is not None:
             linked_id = getattr(user, provider_field)
             if linked_id is not None and linked_id != profile.provider_id:

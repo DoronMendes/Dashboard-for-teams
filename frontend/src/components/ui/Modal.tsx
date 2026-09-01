@@ -74,7 +74,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
       <div
-        className="fixed inset-0 bg-ink/40"
+        className="fixed inset-0 animate-[modal-backdrop-in_180ms_ease-out] bg-ink/40 backdrop-blur-[2px]"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -84,7 +84,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative w-full max-w-lg border border-hairline bg-panel shadow-xl"
+        className="relative w-full max-w-lg rounded-[22px] border border-black/[0.06] bg-panel shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[modal-panel-in_220ms_cubic-bezier(0.16,1,0.3,1)]"
       >
         <header className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
           <h2 id={titleId} className="font-display text-base font-semibold text-ink">

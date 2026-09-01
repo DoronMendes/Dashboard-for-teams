@@ -4,6 +4,7 @@ from uuid import UUID
 
 from app.core.exceptions import EntityNotFoundError
 from app.models.link import Link
+from app.models.enums import LinkHealthStatus
 from app.repositories.link import LinkRepository
 from app.repositories.project import ProjectRepository
 from app.repositories.taxonomy import BookmarkRepository, TagRepository
@@ -90,6 +91,13 @@ class LinkService:
         link = await self.get(link_id, owner_id)
         await self._ensure_can_edit(link.project_id, owner_id)
         changes = payload.model_dump(exclude_unset=True, exclude={"tags"})
+        if "url" in changes and changes["url"] != link.url:
+            changes.update(
+                status_code=None,
+                health_status=LinkHealthStatus.CHECKING,
+                last_checked_at=None,
+                response_time_ms=None,
+            )
         if payload.tags is not None:
             link.tags = await self.tags.resolve(owner_id, payload.tags)
         if not changes:

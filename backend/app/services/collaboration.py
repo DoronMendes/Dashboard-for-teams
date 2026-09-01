@@ -76,6 +76,17 @@ class CollaborationService:
         )
         return {"id": user.id, "name": user.name, "email": user.email, "role": member.role}
 
+    async def remove_member(self, workspace_id: UUID, member_id: UUID, actor_id: UUID) -> None:
+        actor = await self.repo.membership(workspace_id, actor_id)
+        target = await self.repo.membership(workspace_id, member_id)
+        if actor is None or actor.role not in {"owner", "admin"}:
+            raise EntityNotFoundError("Workspace not found or insufficient permission")
+        if target is None:
+            raise EntityNotFoundError("Workspace member not found")
+        if target.role == "owner" or target.user_id == actor_id:
+            raise EntityNotFoundError("The workspace owner or current user cannot be removed")
+        await self.repo.remove_member(target)
+
     async def invite(self, workspace_id: UUID, email: str, role: str, actor_id: UUID):
         actor = await self.repo.membership(workspace_id, actor_id)
         if actor is None or actor.role not in {"owner", "admin"}:

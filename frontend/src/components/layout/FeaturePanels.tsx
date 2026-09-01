@@ -1,3 +1,23 @@
 import { Languages, LayoutGrid, Moon, Sun } from "lucide-react";
 
-export function SettingsPanel({ direction, onDirectionChange, viewMode, onViewModeChange, theme, onThemeChange }: { direction: "rtl" | "ltr"; onDirectionChange: () => void; viewMode: "grid" | "list"; onViewModeChange: (value: "grid" | "list") => void; theme: "light" | "dark"; onThemeChange: () => void }) { const rtl = direction === "rtl"; return <div className="max-w-2xl space-y-4"><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-3">{theme === "dark" ? <Moon className="size-5 text-indigo-400" /> : <Sun className="size-5 text-amber-500" />}<div><h2 className="font-bold">{rtl ? "ערכת נושא" : "Appearance"}</h2><p className="text-xs text-slate-400">{rtl ? "ההעדפה נשמרת במכשיר זה." : "Your preference is saved on this device."}</p></div><button onClick={onThemeChange} className="ms-auto rounded-xl bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700">{rtl ? (theme === "dark" ? "מעבר למצב בהיר" : "מעבר למצב כהה") : (theme === "dark" ? "Use light mode" : "Use dark mode")}</button></div></section><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-3"><Languages className="size-5 text-indigo-500" /><div><h2 className="font-bold">{rtl ? "שפה וכיוון" : "Language and direction"}</h2><p className="text-xs text-slate-400">{rtl ? "ההעדפה נשמרת במכשיר זה." : "Saved on this device."}</p></div><button onClick={onDirectionChange} className="ms-auto rounded-xl bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700">{rtl ? "English (LTR)" : "עברית (RTL)"}</button></div></section><section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="flex items-center gap-3"><LayoutGrid className="size-5 text-indigo-500" /><h2 className="font-bold">{rtl ? "תצוגת ברירת מחדל" : "Default view"}</h2><div className="ms-auto flex rounded-xl bg-slate-100 p-1"><button onClick={() => onViewModeChange("grid")} className={`rounded-lg px-3 py-2 text-xs ${viewMode === "grid" ? "bg-white font-bold shadow-sm" : "text-slate-500"}`}>{rtl ? "רשת" : "Grid"}</button><button onClick={() => onViewModeChange("list")} className={`rounded-lg px-3 py-2 text-xs ${viewMode === "list" ? "bg-white font-bold shadow-sm" : "text-slate-500"}`}>{rtl ? "רשימה" : "List"}</button></div></div></section></div>; }
+import { AvatarSettings } from "@/components/layout/AvatarSettings";
+
+interface SettingsPanelProps {
+  direction: "rtl" | "ltr";
+  onDirectionChange: () => void;
+  viewMode: "grid" | "list";
+  onViewModeChange: (value: "grid" | "list") => void;
+  theme: "light" | "dark";
+  onThemeChange: () => void;
+}
+
+export function SettingsPanel({ direction, onDirectionChange, viewMode, onViewModeChange, theme, onThemeChange }: SettingsPanelProps) {
+  const rtl = direction === "rtl";
+  const card = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm";
+  return <div className="max-w-2xl space-y-4">
+    <AvatarSettings direction={direction} />
+    <section className={card}><div className="flex items-center gap-3">{theme === "dark" ? <Moon className="size-5 text-indigo-400" /> : <Sun className="size-5 text-amber-500" />}<div><h2 className="font-bold">{rtl ? "ערכת נושא" : "Appearance"}</h2><p className="text-xs text-slate-400">{rtl ? "ההעדפה נשמרת במכשיר זה." : "Your preference is saved on this device."}</p></div><button onClick={onThemeChange} className="ms-auto rounded-xl bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700">{rtl ? (theme === "dark" ? "מעבר למצב בהיר" : "מעבר למצב כהה") : (theme === "dark" ? "Use light mode" : "Use dark mode")}</button></div></section>
+    <section className={card}><div className="flex items-center gap-3"><Languages className="size-5 text-indigo-500" /><div><h2 className="font-bold">{rtl ? "שפה וכיוון" : "Language and direction"}</h2><p className="text-xs text-slate-400">{rtl ? "ההעדפה נשמרת במכשיר זה." : "Saved on this device."}</p></div><button onClick={onDirectionChange} className="ms-auto rounded-xl bg-indigo-50 px-4 py-2 text-xs font-bold text-indigo-700">{rtl ? "English (LTR)" : "עברית (RTL)"}</button></div></section>
+    <section className={card}><div className="flex items-center gap-3"><LayoutGrid className="size-5 text-indigo-500" /><h2 className="font-bold">{rtl ? "תצוגת ברירת מחדל" : "Default view"}</h2><div className="ms-auto flex rounded-xl bg-slate-100 p-1"><button onClick={() => onViewModeChange("grid")} className={`rounded-lg px-3 py-2 text-xs ${viewMode === "grid" ? "bg-white font-bold shadow-sm" : "text-slate-500"}`}>{rtl ? "רשת" : "Grid"}</button><button onClick={() => onViewModeChange("list")} className={`rounded-lg px-3 py-2 text-xs ${viewMode === "list" ? "bg-white font-bold shadow-sm" : "text-slate-500"}`}>{rtl ? "רשימה" : "List"}</button></div></div></section>
+  </div>;
+}

@@ -53,19 +53,41 @@ class EngagementService:
     async def analytics(self, user_id: UUID) -> dict:
         projects = await self.projects.search(user_id, limit=200)
         top = await self.visits.most_visited(user_id)
+        week_start = datetime.now(UTC) - timedelta(days=7)
+        project_errors = [
+            (project, sum(link.health_status == "error" for link in project.links))
+            for project in projects
+        ]
+        project_with_most_errors = max(project_errors, key=lambda item: item[1], default=None)
         return {
             "total_projects": len(projects),
             "total_links": sum(len(p.links) for p in projects),
             "total_visits": await self.visits.count_for_owner(user_id),
-            "weekly_visits": await self.visits.count_for_owner(
-                user_id, datetime.now(UTC) - timedelta(days=7)
+            "weekly_visits": await self.visits.count_for_owner(user_id, week_start),
+            "slow_links": sum(
+                link.response_time_ms is not None and link.response_time_ms > 2500
+                for project in projects
+                for link in project.links
             ),
+            "weekly_active_users": await self.visits.distinct_users(user_id, week_start),
             "most_visited": (
                 {"id": top[0].id, "title": top[0].title, "url": top[0].url, "visits": top[1]}
                 if top
                 else None
             ),
+            "project_with_most_errors": (
+                {
+                    "id": project_with_most_errors[0].id,
+                    "name": project_with_most_errors[0].name,
+                    "errors": project_with_most_errors[1],
+                }
+                if project_with_most_errors and project_with_most_errors[1] > 0
+                else None
+            ),
         }
+
+    async def health_summary(self, user_id: UUID) -> dict[str, int]:
+        return await self.links.health_summary(user_id)
 
     async def clicks_trend(self, user_id: UUID, interval: str, days: int) -> list[dict]:
         now = datetime.now(UTC)

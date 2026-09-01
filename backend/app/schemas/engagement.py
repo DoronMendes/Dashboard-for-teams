@@ -27,12 +27,21 @@ class MostVisited(BaseModel):
     visits: int
 
 
+class ProjectWithMostErrors(BaseModel):
+    id: UUID4
+    name: str
+    errors: int
+
+
 class AnalyticsResponse(BaseModel):
     total_projects: int
     total_links: int
     total_visits: int
     weekly_visits: int
+    slow_links: int
+    weekly_active_users: int
     most_visited: MostVisited | None
+    project_with_most_errors: ProjectWithMostErrors | None
 
 
 class VisitResponse(BaseModel):
@@ -51,6 +60,12 @@ class ActiveUsersResponse(BaseModel):
     dau: int
 
 
+class ProjectVisitorResponse(BaseModel):
+    id: UUID4
+    name: str
+    email: str
+
+
 class TopProjectResponse(BaseModel):
     id: UUID4
     name: str
@@ -59,4 +74,11 @@ class TopProjectResponse(BaseModel):
     links_count: int
     clicks: int
     unique_visitors: int
+    visitors: list[ProjectVisitorResponse]
     traffic_share: float
+
+
+class HealthSummaryResponse(BaseModel):
+    healthy: int
+    warning: int
+    error: int

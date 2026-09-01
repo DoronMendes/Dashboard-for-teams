@@ -8,6 +8,7 @@ from app.db.base_class import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.models.link import Link
+    from app.models.project import Project
     from app.models.user import User
 
 link_tags = Table(
@@ -36,3 +37,11 @@ class Bookmark(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     link_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("links.id", ondelete="CASCADE"), nullable=False, index=True)
     user: Mapped["User"] = relationship(back_populates="bookmarks")
     link: Mapped["Link"] = relationship(back_populates="bookmarks")
+
+
+class ProjectPin(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "project_pins"
+    __table_args__ = (UniqueConstraint("user_id", "project_id", name="uq_project_pins_user_id_project_id"),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)

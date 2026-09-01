@@ -1,6 +1,8 @@
+from datetime import datetime
+
 from pydantic import UUID4, AnyUrl, BaseModel, ConfigDict, Field, field_validator
 
-from app.models.enums import LinkCategory
+from app.models.enums import LinkCategory, LinkHealthStatus
 from app.schemas.common import IdentifiedModel
 
 
@@ -80,3 +82,7 @@ class LinkResponse(IdentifiedModel):
     tags: list[str] = Field(validation_alias="tag_names")
     creator: CreatorResponse
     is_bookmarked: bool
+    status_code: int | None
+    health_status: LinkHealthStatus
+    last_checked_at: datetime | None
+    response_time_ms: int | None

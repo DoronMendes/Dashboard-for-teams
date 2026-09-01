@@ -148,7 +148,7 @@ export function ProjectGrid({
         items={visibleProjects.map((project) => project.id)}
         strategy={rectSortingStrategy}
       >
-        <div className={`project-board grid items-start gap-3 ${viewMode === "grid" ? "md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" : "grid-cols-1"}`}>
+        <div className={`project-board grid items-start gap-5 lg:gap-6 ${viewMode === "grid" ? "md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4" : "grid-cols-1"}`}>
           {visibleProjects.map((project) => (
             <ProjectCard
               key={project.id}

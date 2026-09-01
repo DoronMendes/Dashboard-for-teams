@@ -25,6 +25,7 @@ from app.services.auth import AuthService
 from app.services.collaboration import CollaborationService
 from app.services.engagement import EngagementService
 from app.services.link import LinkService
+from app.services.link_health import LinkHealthService
 from app.services.oauth import OAuthService
 from app.services.project import ProjectService
 
@@ -127,6 +128,10 @@ def get_link_service(
     return LinkService(links, projects, tags, bookmarks, activities, collaboration)
 
 
+def get_link_health_service(links: LinkRepo) -> LinkHealthService:
+    return LinkHealthService(links)
+
+
 def get_engagement_service(
     activities: ActivityRepo,
     visits: VisitRepo,
@@ -153,6 +158,7 @@ def get_oauth_service() -> OAuthService:
 
 ProjectSvc = Annotated[ProjectService, Depends(get_project_service)]
 LinkSvc = Annotated[LinkService, Depends(get_link_service)]
+LinkHealthSvc = Annotated[LinkHealthService, Depends(get_link_health_service)]
 AuthSvc = Annotated[AuthService, Depends(get_auth_service)]
 OAuthSvc = Annotated[OAuthService, Depends(get_oauth_service)]
 EngagementSvc = Annotated[EngagementService, Depends(get_engagement_service)]

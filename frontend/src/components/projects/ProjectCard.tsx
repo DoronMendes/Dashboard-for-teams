@@ -19,6 +19,7 @@ import { GripVertical, Pencil, Pin, Plus, Trash2 } from "lucide-react";
 import type { CSSProperties } from "react";
 
 import { LinkRow } from "@/components/links/LinkRow";
+import { ActionTooltip } from "@/components/ui/ActionTooltip";
 import type { Link, Project } from "@/types";
 
 interface ProjectCardProps {
@@ -84,28 +85,23 @@ export function ProjectCard({
     <article
       ref={setNodeRef}
       style={style}
-      className={`group/card relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm transition-[border-color,box-shadow] duration-150 hover:border-slate-300 ${links.length ? "h-[22rem]" : "h-auto"} ${
+      className={`group/card relative flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-black/[0.055] bg-white shadow-[0_10px_35px_rgba(15,23,42,0.055)] transition-[border-color,box-shadow,transform] duration-200 hover:border-black/[0.09] hover:shadow-[0_16px_42px_rgba(15,23,42,0.085)] ${links.length ? "h-[22rem]" : "h-auto"} ${
         isDragging ? "rotate-1 shadow-xl ring-2 ring-indigo-200" : ""
       }`}
     >
-      <header className="project-card-header border-b border-slate-100 px-3 py-2.5">
-        <div className="flex items-start justify-between gap-3">
-          <h2 className="font-display text-xs font-bold tracking-tight text-slate-900">
-            {project.name}
-          </h2>
-
+      <header className="project-card-header border-b border-slate-100 px-4 py-3">
+        <div className="mb-1 flex h-4 items-center justify-end">
           <span className="flex shrink-0 items-center gap-0.5">
-            <button
+            <ActionTooltip label="גרירה לשינוי מיקום"><button
               type="button"
               {...attributes}
               {...listeners}
               aria-label={`שינוי מיקום הפרויקט ${project.name}`}
-              title="גרירה לשינוי מיקום"
               className="cursor-grab touch-none rounded-md p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-700 active:cursor-grabbing"
             >
               <GripVertical className="size-4" aria-hidden="true" />
-            </button>
-            <button
+            </button></ActionTooltip>
+            <ActionTooltip label={project.is_pinned ? "ביטול הצמדה" : "הצמדה לראש הרשימה"}><button
               type="button"
               onClick={() => onTogglePin(project)}
               aria-label={
@@ -114,37 +110,50 @@ export function ProjectCard({
                   : `הצמדת הפרויקט ${project.name}`
               }
               aria-pressed={project.is_pinned}
-              title={project.is_pinned ? "ביטול הצמדה" : "הצמדת הפרויקט לראש הרשימה"}
-              className={`p-1.5 transition-colors ${
+              className={`p-1 transition-colors ${
                 project.is_pinned
                   ? "rounded-md bg-white text-indigo-600 shadow-sm"
                   : "rounded-md text-slate-400 hover:bg-white hover:text-indigo-600"
               }`}
             >
               <Pin className={`size-4 ${project.is_pinned ? "fill-current" : ""}`} />
-            </button>
-            <span className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover/card:opacity-100 focus-within:opacity-100">
-              <button
+            </button></ActionTooltip>
+            <span className="flex items-center gap-0.5">
+              <ActionTooltip label="עריכת הפרויקט"><button
                 type="button"
                 onClick={() => onEditProject(project)}
                 aria-label={`עריכת הפרויקט ${project.name}`}
                 className="rounded-md p-1 text-slate-400 transition-colors hover:bg-white hover:text-slate-900"
               >
                 <Pencil className="size-3.5" />
-              </button>
-              <button
+              </button></ActionTooltip>
+              <ActionTooltip label="מחיקת הפרויקט"><button
                 type="button"
                 onClick={() => onDeleteProject(project)}
                 aria-label={`מחיקת הפרויקט ${project.name}`}
                 className="rounded-md p-1 text-slate-400 transition-colors hover:bg-white hover:text-rose-600"
               >
                 <Trash2 className="size-3.5" />
-              </button>
+              </button></ActionTooltip>
             </span>
           </span>
         </div>
+        <h2 className="flex min-w-0 items-center gap-3 font-display text-lg font-extrabold tracking-[-0.025em] text-slate-950 lg:text-xl">
+          {project.icon && (project.icon.startsWith("data:image/") ? (
+            <img src={project.icon} alt="" className="size-10 shrink-0 rounded-xl bg-white object-cover shadow-sm ring-1 ring-slate-200/70" />
+          ) : (
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-xl shadow-sm ring-1 ring-slate-200/70" aria-hidden="true">{project.icon}</span>
+          ))}
+          <span className="min-w-0 break-words leading-tight">{project.name}</span>
+        </h2>
 
-        {project.description && <p className="mt-1.5 line-clamp-2 max-w-[28rem] whitespace-pre-line text-[10px] leading-4 text-slate-500">{project.description}</p>}
+        {project.description && <p className="mt-2 line-clamp-2 max-w-[28rem] whitespace-pre-line text-sm leading-5 text-slate-500">{project.description}</p>}
+        <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-slate-500">
+          <span>{links.length} {links.length === 1 ? "קישור" : "קישורים"}</span>
+          <span className="text-slate-300">•</span>
+          <span className="text-emerald-700">{links.filter((link) => link.health_status === "healthy").length} תקינים</span>
+          {links.some((link) => link.health_status === "error") && <><span className="text-slate-300">•</span><span className="text-rose-600">{links.filter((link) => link.health_status === "error").length} שגיאות</span></>}
+        </div>
       </header>
 
       {links.length > 0 ? (<div className="flex min-h-0 flex-1 flex-col">
@@ -171,14 +180,14 @@ export function ProjectCard({
           </DndContext>
         </div>
       ) : (
-        <button type="button" onClick={() => onAddLink(project)} className="m-3 flex items-center justify-between rounded-lg border border-dashed border-slate-200 p-3 text-xs text-slate-400 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-600"><span>אין קישורים זמינים כרגע</span><span className="flex items-center gap-1 font-medium text-indigo-600"><Plus className="size-3.5" />הוסף קישור</span></button>
+        <button type="button" onClick={() => onAddLink(project)} className="m-4 flex min-h-28 flex-col items-center justify-center rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 p-4 text-sm text-slate-500 transition hover:border-blue-300 hover:bg-blue-50"><span className="grid size-9 place-items-center rounded-full bg-white text-[#0B3FC1] shadow-sm"><Plus className="size-5" /></span><strong className="mt-2 text-[#0B3FC1]">הוסף קישור ראשון</strong><span className="mt-1 text-xs text-slate-400">רכז כאן סביבת עבודה, מסמך או כלי</span></button>
       )}
 
-      {links.length > 0 && <footer className="mt-auto border-t border-slate-100 px-2 py-1.5">
+      {links.length > 0 && <footer className="mt-auto px-3 py-3">
         <button
           type="button"
           onClick={() => onAddLink(project)}
-          className="flex w-full items-center justify-start gap-1.5 rounded-lg px-2 py-2 text-[10px] font-medium text-slate-500 transition hover:bg-white hover:text-indigo-600"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-blue-200 bg-blue-50/50 px-3 py-2.5 text-xs font-bold text-[#0B3FC1] transition hover:border-blue-300 hover:bg-blue-50"
         >
           הוסף קישור
           <Plus className="size-3.5" aria-hidden="true" />

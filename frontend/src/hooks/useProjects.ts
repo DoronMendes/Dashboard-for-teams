@@ -4,6 +4,7 @@ import { queryKeys } from "@/lib/queryClient";
 import * as api from "@/services/api";
 import type {
   LinkCreate,
+  Link,
   LinkUpdate,
   Project,
   ProjectCreate,
@@ -19,6 +20,7 @@ export function useProjects(search: string) {
     queryKey: queryKeys.projects(search),
     queryFn: () => api.getProjects({ q: search }),
     placeholderData: (previous) => previous, // keep the grid steady while refetching
+    refetchInterval: 30_000,
   });
 }
 
@@ -117,16 +119,67 @@ export function useSetLinkBookmark() {
   });
 }
 
+export function useCheckLinkHealth() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.checkLinkHealth(id),
+    onMutate: async (id) => {
+      await client.cancelQueries({ queryKey: ["projects"] });
+      client.setQueriesData<Project[]>({ queryKey: ["projects"] }, (projects) =>
+        projects?.map((project) => ({
+          ...project,
+          links: project.links.map((link) =>
+            link.id === id ? { ...link, health_status: "checking" as const } : link,
+          ),
+        })),
+      );
+    },
+    onSuccess: (checked: Link) => {
+      client.setQueriesData<Project[]>({ queryKey: ["projects"] }, (projects) =>
+        projects?.map((project) => ({
+          ...project,
+          links: project.links.map((link) => (link.id === checked.id ? checked : link)),
+        })),
+      );
+      void client.invalidateQueries({ queryKey: ["analytics", "health-summary"] });
+    },
+    onError: () => client.invalidateQueries({ queryKey: ["projects"] }),
+  });
+}
+
+export function useCheckAllLinkHealth() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: api.checkAllLinkHealth,
+    onMutate: () => {
+      client.setQueriesData<Project[]>({ queryKey: ["projects"] }, (projects) =>
+        projects?.map((project) => ({
+          ...project,
+          links: project.links.map((link) => ({ ...link, health_status: "checking" as const })),
+        })),
+      );
+    },
+    onSuccess: () => {
+      window.setTimeout(() => {
+        void client.invalidateQueries({ queryKey: ["projects"] });
+        void client.invalidateQueries({ queryKey: ["analytics", "health-summary"] });
+      }, 6_000);
+    },
+  });
+}
+
 export function useActivity() { return useQuery({ queryKey: ["activity"], queryFn: api.getActivity }); }
 export function useAnalytics() { return useQuery({ queryKey: ["analytics"], queryFn: api.getAnalytics }); }
 export function useClicksTrend(interval: "daily" | "weekly" | "monthly") { return useQuery({ queryKey: ["analytics", "clicks-trend", interval], queryFn: () => api.getClicksTrend(interval) }); }
 export function useActiveUsers(range: "7d" | "30d" | "all") { return useQuery({ queryKey: ["analytics", "active-users", range], queryFn: () => api.getActiveUsers(range) }); }
 export function useTopProjects() { return useQuery({ queryKey: ["analytics", "top-projects", 5], queryFn: () => api.getTopProjects(5) }); }
+export function useHealthSummary() { return useQuery({ queryKey: ["analytics", "health-summary"], queryFn: api.getHealthSummary, refetchInterval: 30_000 }); }
 export function useNotifications() { return useQuery({ queryKey: ["notifications"], queryFn: api.getNotifications }); }
 export function useUnreadNotificationCount() { return useQuery({ queryKey: ["notifications", "unread"], queryFn: api.getUnreadNotificationCount }); }
 export function useWorkspaces() { return useQuery({ queryKey: ["workspaces"], queryFn: api.getWorkspaces }); }
 export function useCreateTeam() { const client = useQueryClient(); return useMutation({ mutationFn: ({ workspaceId, name }: { workspaceId: string; name: string }) => api.createTeam(workspaceId, name), onSuccess: () => client.invalidateQueries({ queryKey: ["workspaces"] }) }); }
 export function useAddWorkspaceMember() { const client = useQueryClient(); return useMutation({ mutationFn: ({ workspaceId, email, role }: { workspaceId: string; email: string; role: string }) => api.addWorkspaceMember(workspaceId, email, role), onSuccess: () => client.invalidateQueries({ queryKey: ["workspaces"] }) }); }
+export function useRemoveWorkspaceMember() { const client = useQueryClient(); return useMutation({ mutationFn: ({ workspaceId, memberId }: { workspaceId: string; memberId: string }) => api.removeWorkspaceMember(workspaceId, memberId), onSuccess: () => client.invalidateQueries({ queryKey: ["workspaces"] }) }); }
 
 export function useReorderLinks(search: string) {
   const client = useQueryClient();

@@ -1,11 +1,12 @@
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from app.models.enums import LinkCategory
+from app.models.enums import LinkCategory, LinkHealthStatus
 
 if TYPE_CHECKING:  # pragma: no cover
     from app.models.project import Project
@@ -35,6 +36,16 @@ class Link(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         server_default=LinkCategory.OTHER.value,
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    status_code: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    health_status: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default=LinkHealthStatus.CHECKING,
+        server_default=LinkHealthStatus.CHECKING.value,
+        index=True,
+    )
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    response_time_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     project: Mapped["Project"] = relationship(back_populates="links")
     creator: Mapped["User"] = relationship(back_populates="created_links", lazy="joined")

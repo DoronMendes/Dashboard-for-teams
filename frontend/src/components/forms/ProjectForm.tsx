@@ -1,11 +1,12 @@
-import { useState, type FormEvent } from "react";
+import { useState, type ChangeEvent, type FormEvent } from "react";
 
 import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field, inputClass } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
+import { RoundedSelect } from "@/components/ui/RoundedSelect";
 import { useCreateProject, useUpdateProject, useWorkspaces } from "@/hooks/useProjects";
-import { validateDescription, validateProjectName } from "@/lib/validation";
+import { PROJECT_ICON_FILE_MAX_BYTES, validateDescription, validateProjectIcon, validateProjectName } from "@/lib/validation";
 import { ApiError } from "@/services/apiClient";
 import type { Project } from "@/types";
 
@@ -16,20 +17,46 @@ interface ProjectFormProps {
   onClose: () => void;
 }
 
+const PROJECT_ICONS = ["🚀", "💻", "📊", "🛠️", "🎨", "📱", "🌐", "💡", "📁", "⚙️", "🧪", "🔒"];
+
 export function ProjectForm({ open, project, onClose }: ProjectFormProps) {
   const isEdit = project !== undefined;
   const { notify } = useToast();
 
   const [name, setName] = useState(project?.name ?? "");
+  const [icon, setIcon] = useState(project?.icon ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
   const [teamId, setTeamId] = useState(project?.team_id ?? "");
-  const [errors, setErrors] = useState<{ name?: string; description?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; icon?: string; description?: string }>({});
   const [formError, setFormError] = useState<string | null>(null);
 
   const createProject = useCreateProject();
   const updateProject = useUpdateProject();
   const busy = createProject.isPending || updateProject.isPending;
   const { data: workspaces } = useWorkspaces();
+  const uploadedIcon = icon.startsWith("data:image/");
+
+  function handleIconFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setErrors((current) => ({ ...current, icon: "ניתן להעלות קובץ PNG, JPG או WebP בלבד." }));
+      return;
+    }
+    if (file.size > PROJECT_ICON_FILE_MAX_BYTES) {
+      setErrors((current) => ({ ...current, icon: "גודל האייקון יכול להיות עד 512KB." }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result !== "string") return;
+      setIcon(reader.result);
+      setErrors((current) => ({ ...current, icon: undefined }));
+    };
+    reader.onerror = () => setErrors((current) => ({ ...current, icon: "לא ניתן לקרוא את הקובץ שנבחר." }));
+    reader.readAsDataURL(file);
+  }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -37,13 +64,15 @@ export function ProjectForm({ open, project, onClose }: ProjectFormProps) {
 
     const nextErrors = {
       name: validateProjectName(name),
+      icon: validateProjectIcon(icon),
       description: validateDescription(description),
     };
     setErrors(nextErrors);
-    if (nextErrors.name || nextErrors.description) return;
+    if (nextErrors.name || nextErrors.icon || nextErrors.description) return;
 
     const payload = {
       name: name.trim(),
+      icon: icon.trim() || null,
       description: description.trim() || null,
       ...(!isEdit ? { workspace_id: workspaces?.[0]?.id } : {}),
       team_id: teamId || null,
@@ -68,7 +97,7 @@ export function ProjectForm({ open, project, onClose }: ProjectFormProps) {
         { id: project.id, payload },
         {
           onSuccess: () => {
-            notify(`הפרויקט „${payload.name}” נשמר.`);
+            notify(`הפרויקט "${payload.name}" נשמר.`);
             onClose();
           },
           onError,
@@ -77,7 +106,7 @@ export function ProjectForm({ open, project, onClose }: ProjectFormProps) {
     } else {
       createProject.mutate(payload, {
         onSuccess: () => {
-          notify(`הפרויקט „${payload.name}” נוצר.`);
+          notify(`הפרויקט "${payload.name}" נוצר.`);
           onClose();
         },
         onError,
@@ -107,8 +136,55 @@ export function ProjectForm({ open, project, onClose }: ProjectFormProps) {
           )}
         </Field>
 
+        <Field label="אייקון" hint="בחרו אימוג׳י או העלו תמונת PNG, JPG או WebP עד 512KB." error={errors.icon}>
+          {({ id, describedBy }) => (
+            <div aria-describedby={describedBy}>
+              <div className="flex items-center gap-2">
+                {uploadedIcon ? (
+                  <img src={icon} alt="תצוגה מקדימה של האייקון" className="size-14 rounded-xl border border-slate-200 object-cover" />
+                ) : (
+                  <input
+                    id={id}
+                    value={icon}
+                    onChange={(event) => setIcon(event.target.value)}
+                    placeholder="🚀"
+                    className={`${inputClass} w-20 text-center text-xl`}
+                    disabled={busy}
+                    autoComplete="off"
+                    maxLength={32}
+                  />
+                )}
+                <label className="cursor-pointer rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-indigo-200 hover:bg-indigo-50">
+                  העלאת תמונה
+                  <input id={uploadedIcon ? id : undefined} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleIconFile} className="sr-only" disabled={busy} />
+                </label>
+                {icon && (
+                  <button type="button" onClick={() => setIcon("")} className="text-xs font-medium text-slate-500 hover:text-slate-900" disabled={busy}>
+                    הסרת אייקון
+                  </button>
+                )}
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5" aria-label="בחירת אייקון">
+                {PROJECT_ICONS.map((candidate) => (
+                  <button
+                    key={candidate}
+                    type="button"
+                    onClick={() => { setIcon(candidate); setErrors((current) => ({ ...current, icon: undefined })); }}
+                    aria-label={`בחירת האייקון ${candidate}`}
+                    aria-pressed={icon === candidate}
+                    className={`grid size-9 place-items-center rounded-lg border text-lg transition ${icon === candidate ? "border-indigo-400 bg-indigo-50 ring-2 ring-indigo-100" : "border-slate-200 bg-white hover:border-indigo-200 hover:bg-slate-50"}`}
+                    disabled={busy}
+                  >
+                    {candidate}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </Field>
+
         <Field label="צוות">
-          {({ id }) => <select id={id} value={teamId} onChange={(event) => setTeamId(event.target.value)} className={inputClass} disabled={busy}><option value="">ללא צוות</option>{(workspaces ?? []).flatMap((workspace) => workspace.teams).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}</select>}
+          {({ id }) => <RoundedSelect id={id} value={teamId} onChange={setTeamId} disabled={busy} options={[{ value: "", label: "ללא צוות" }, ...(workspaces ?? []).flatMap((workspace) => workspace.teams).map((team) => ({ value: team.id, label: team.name }))]} />}
         </Field>
 
         <Field

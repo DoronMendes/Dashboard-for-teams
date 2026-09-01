@@ -5,6 +5,8 @@
  */
 
 export const PROJECT_NAME_MAX = 255;
+export const PROJECT_ICON_MAX = 32;
+export const PROJECT_ICON_FILE_MAX_BYTES = 512 * 1024;
 export const PROJECT_DESCRIPTION_MAX = 5000;
 export const LINK_TITLE_MAX = 255;
 export const LINK_URL_MAX = 2048;
@@ -19,6 +21,13 @@ export function validateProjectName(value: string): string | undefined {
 export function validateDescription(value: string): string | undefined {
   if (value.length > PROJECT_DESCRIPTION_MAX)
     return `יש להזין עד ${PROJECT_DESCRIPTION_MAX} תווים.`;
+  return undefined;
+}
+
+export function validateProjectIcon(value: string): string | undefined {
+  if (value.startsWith("data:image/")) return undefined;
+  if (value.trim().length > PROJECT_ICON_MAX)
+    return `יש להזין עד ${PROJECT_ICON_MAX} תווים.`;
   return undefined;
 }
 

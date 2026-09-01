@@ -4,6 +4,7 @@ import { useToast } from "@/components/feedback/Toast";
 import { Button } from "@/components/ui/Button";
 import { Field, inputClass } from "@/components/ui/Field";
 import { Modal } from "@/components/ui/Modal";
+import { RoundedSelect } from "@/components/ui/RoundedSelect";
 import { useCreateLink, useUpdateLink } from "@/hooks/useProjects";
 import { normalizeUrl, validateLinkTitle, validateUrl } from "@/lib/validation";
 import { ApiError } from "@/services/apiClient";
@@ -61,7 +62,7 @@ export function LinkForm({ open, projectId, projectName, projects, link, onClose
         { id: link.id, payload },
         {
           onSuccess: () => {
-            notify(`הקישור „${payload.title}” נשמר.`);
+            notify(`הקישור "${payload.title}" נשמר.`);
             onClose();
           },
           onError,
@@ -73,7 +74,7 @@ export function LinkForm({ open, projectId, projectName, projects, link, onClose
         { projectId: selectedProjectId, payload },
         {
           onSuccess: () => {
-            notify(`הקישור „${payload.title}” נוסף לפרויקט „${selectedProject?.name ?? projectName ?? ""}”.`);
+            notify(`הקישור "${payload.title}" נוסף לפרויקט "${selectedProject?.name ?? projectName ?? ""}".`);
             onClose();
           },
           onError,
@@ -85,13 +86,13 @@ export function LinkForm({ open, projectId, projectName, projects, link, onClose
   return (
     <Modal
       open={open}
-      title={isEdit ? "עריכת קישור" : projectName ? `הוספת קישור לפרויקט „${projectName}”` : "הוספת קישור חדש"}
+      title={isEdit ? "עריכת קישור" : projectName ? `הוספת קישור לפרויקט "${projectName}"` : "הוספת קישור חדש"}
       onClose={busy ? () => {} : onClose}
     >
       <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {!isEdit && projects && (
           <Field label="פרויקט" error={!selectedProjectId ? "יש לבחור פרויקט." : undefined}>
-            {({ id, describedBy }) => <select id={id} aria-describedby={describedBy} value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} className={inputClass} disabled={busy}><option value="">בחירת פרויקט</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select>}
+            {({ id, describedBy }) => <RoundedSelect id={id} ariaDescribedBy={describedBy} value={selectedProjectId} onChange={setSelectedProjectId} disabled={busy} options={[{ value: "", label: "בחירת פרויקט" }, ...projects.map((project) => ({ value: project.id, label: project.name }))]} />}
           </Field>
         )}
         <Field label="כותרת" error={errors.title}>
@@ -131,21 +132,7 @@ export function LinkForm({ open, projectId, projectName, projects, link, onClose
         </Field>
 
         <Field label="קטגוריה">
-          {({ id }) => (
-            <select
-              id={id}
-              value={category}
-              onChange={(event) => setCategory(event.target.value as LinkCategory)}
-              className={inputClass}
-              disabled={busy}
-            >
-              {LINK_CATEGORIES.map((value) => (
-                <option key={value} value={value}>
-                  {CATEGORY_LABELS[value]}
-                </option>
-              ))}
-            </select>
-          )}
+          {({ id }) => <RoundedSelect id={id} value={category} onChange={(value) => setCategory(value as LinkCategory)} disabled={busy} options={LINK_CATEGORIES.map((value) => ({ value, label: CATEGORY_LABELS[value] }))} />}
         </Field>
 
         <Field label="תגיות" hint="הפרידו בין תגיות באמצעות פסיק.">
@@ -158,7 +145,7 @@ export function LinkForm({ open, projectId, projectName, projects, link, onClose
           <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
             ביטול
           </Button>
-          <Button type="submit" busy={busy}>
+          <Button type="submit" busy={busy} className={`rounded-xl ${isEdit ? "" : "bg-[#0B3FC1] text-white shadow-[0_8px_20px_rgba(11,63,193,0.2)] hover:bg-[#0936A6]"}`}>
             {isEdit ? "שמירת שינויים" : "הוספת קישור"}
           </Button>
         </div>

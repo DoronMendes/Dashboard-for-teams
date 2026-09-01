@@ -6,12 +6,53 @@ project; update and delete address the link directly by its own id.
 
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, BackgroundTasks, status
 
-from app.api.deps import CurrentUser, LinkSvc
+from app.api.deps import CurrentUser, LinkHealthSvc, LinkSvc
+from app.db.session import AsyncSessionLocal
+from app.models.enums import LinkHealthStatus
+from app.repositories.link import LinkRepository
 from app.schemas.link import LinkResponse, LinkUpdate
+from app.services.link_health import LinkHealthService
 
 router = APIRouter()
+
+
+async def _check_all_in_background(user_id: UUID) -> None:
+    async with AsyncSessionLocal() as session:
+        repository = LinkRepository(session)
+        service = LinkHealthService(repository)
+        links = await repository.list_for_owner(user_id)
+        for link in links:
+            link.health_status = LinkHealthStatus.CHECKING
+        await session.commit()
+
+        for link in links:
+            try:
+                await service.check_link(link)
+                await session.commit()
+            except Exception:  # one broken target must not stop the workspace batch
+                await session.rollback()
+
+
+@router.post("/check-all-health", status_code=status.HTTP_202_ACCEPTED)
+async def check_all_health(
+    background_tasks: BackgroundTasks,
+    service: LinkHealthSvc,
+    current_user: CurrentUser,
+) -> dict[str, int]:
+    queued = len(await service.links.list_for_owner(current_user.id))
+    background_tasks.add_task(_check_all_in_background, current_user.id)
+    return {"queued": queued}
+
+
+@router.post("/{link_id}/check-health", response_model=LinkResponse)
+async def check_link_health(
+    link_id: UUID,
+    service: LinkHealthSvc,
+    current_user: CurrentUser,
+) -> LinkResponse:
+    return LinkResponse.model_validate(await service.check(link_id, current_user.id))
 
 
 @router.get(

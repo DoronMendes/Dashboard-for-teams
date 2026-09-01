@@ -16,6 +16,7 @@ export const LINK_CATEGORIES = [
 ] as const;
 
 export type LinkCategory = (typeof LINK_CATEGORIES)[number];
+export type LinkHealthStatus = "healthy" | "warning" | "error" | "checking";
 
 export const CATEGORY_LABELS: Record<LinkCategory, string> = {
   environment: "סביבה",
@@ -48,6 +49,10 @@ export interface Link {
   tags: string[];
   creator: { id: string; name: string; email: string };
   is_bookmarked: boolean;
+  status_code: number | null;
+  health_status: LinkHealthStatus;
+  last_checked_at: string | null;
+  response_time_ms: number | null;
 }
 
 export interface LinkCreate {
@@ -67,6 +72,7 @@ export interface LinkUpdate {
 export interface Project {
   id: string;
   name: string;
+  icon: string | null;
   description: string | null;
   is_pinned: boolean;
   position: number;
@@ -79,6 +85,7 @@ export interface Project {
 
 export interface ProjectCreate {
   name: string;
+  icon?: string | null;
   description?: string | null;
   is_pinned?: boolean;
   workspace_id?: string;
@@ -87,6 +94,7 @@ export interface ProjectCreate {
 
 export interface ProjectUpdate {
   name?: string;
+  icon?: string | null;
   description?: string | null;
   is_pinned?: boolean;
   team_id?: string | null;
@@ -102,15 +110,23 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  avatar: string | null;
+  theme: "light" | "dark";
+  direction: "rtl" | "ltr";
+  view_mode: "grid" | "list";
+  sidebar_collapsed: boolean;
   created_at: string;
   updated_at: string;
 }
 
+export type UserPreferences = Partial<Pick<User, "theme" | "direction" | "view_mode" | "sidebar_collapsed">>;
+
 export interface ActivityEvent { id: string; action: string; entity_type: string; entity_id: string | null; project_id: string | null; details: Record<string, unknown>; user: { id: string; name: string; email: string }; created_at: string; updated_at: string; }
-export interface Analytics { total_projects: number; total_links: number; total_visits: number; weekly_visits: number; most_visited: { id: string; title: string; url: string; visits: number } | null; }
+export interface Analytics { total_projects: number; total_links: number; total_visits: number; weekly_visits: number; slow_links: number; weekly_active_users: number; most_visited: { id: string; title: string; url: string; visits: number } | null; project_with_most_errors: { id: string; name: string; errors: number } | null; }
+export interface HealthSummary { healthy: number; warning: number; error: number; }
 export interface ClickTrendPoint { date: string; clicks: number; }
 export interface ActiveUsersMetric { active_users: number; previous_period_users: number | null; delta_percent: number | null; dau: number; }
-export interface TopProjectMetric { id: string; name: string; creator_name: string; creator_email: string; links_count: number; clicks: number; unique_visitors: number; traffic_share: number; }
+export interface TopProjectMetric { id: string; name: string; creator_name: string; creator_email: string; links_count: number; clicks: number; unique_visitors: number; visitors: Array<{ id: string; name: string; email: string }>; traffic_share: number; }
 export interface Notification { id: string; kind: string; message: string; target_path: string | null; is_read: boolean; created_at: string; updated_at: string; }
 export interface Team { id: string; workspace_id: string; name: string; created_at: string; updated_at: string; }
 export interface Workspace { id: string; name: string; role: "owner" | "admin" | "editor" | "viewer"; teams: Team[]; members: Array<{ id: string; name: string; email: string; role: string }>; created_at: string; updated_at: string; }

@@ -57,6 +57,10 @@ class CollaborationRepository(SQLAlchemyRepository[Workspace]):
         await self.session.flush()
         return member
 
+    async def remove_member(self, membership: WorkspaceMembership) -> None:
+        await self.session.delete(membership)
+        await self.session.flush()
+
     async def invitations_for_email(
         self, email: str, pending_only: bool = True
     ) -> list[WorkspaceInvitation]:

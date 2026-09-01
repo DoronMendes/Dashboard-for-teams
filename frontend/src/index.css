@@ -10,11 +10,11 @@
    screen the category IS the information.
 --------------------------------------------------------------------------- */
 @theme {
-  --color-board: #e8ecef;
+  --color-board: #eef0ed;
   --color-panel: #ffffff;
   --color-ink: #0c1520;
   --color-muted: #5a6875;
-  --color-hairline: #d6dee4;
+  --color-hairline: #e5e7e3;
   --color-signal: #14367a;
 
   /* Category identity — read as status LEDs, not decoration. */
@@ -25,8 +25,8 @@
   --color-cat-monitoring: #db2777;
   --color-cat-other: #64748b;
 
-  --font-display: "Heebo", ui-sans-serif, system-ui, sans-serif;
-  --font-body: "Heebo", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Manrope", "Heebo", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Manrope", "Heebo", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
@@ -38,10 +38,30 @@
 
   body {
     margin: 0;
-    background-color: #f8fafc;
+    background-color: #eef0ed;
     color: var(--color-ink);
-    font-family: "Inter", "Heebo", ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-body);
     -webkit-font-smoothing: antialiased;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button:not(:disabled),
+  a[href],
+  [role="button"]:not([aria-disabled="true"]) {
+    transition-duration: 160ms;
+    transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  button:not(:disabled):active,
+  a[href]:active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: scale(0.96);
+    filter: brightness(0.97);
   }
 
   /* Keyboard focus stays visible everywhere; mouse clicks stay quiet. */
@@ -58,12 +78,81 @@
       animation-duration: 0.01ms !important;
       transition-duration: 0.01ms !important;
     }
+
+    button:active,
+    a:active,
+    [role="button"]:active {
+      transform: none !important;
+    }
   }
 }
 
 @layer utilities {
   .scrollbar-none { scrollbar-width: none; }
   .scrollbar-none::-webkit-scrollbar { display: none; }
+}
+
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-panel-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.context-panel {
+  animation: context-panel-in 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: left center;
+}
+.context-panel-closing {
+  animation: context-panel-out 220ms cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+@keyframes context-panel-in {
+  from { opacity: 0; transform: translateX(-24px) scale(.985); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes context-panel-out {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to { opacity: 0; transform: translateX(-18px) scale(.99); }
+}
+html[dir="ltr"] .context-panel { transform-origin: right center; }
+html[dir="ltr"] .context-panel:not(.context-panel-closing) { animation-name: context-panel-in-ltr; }
+html[dir="ltr"] .context-panel-closing { animation-name: context-panel-out-ltr; }
+@keyframes context-panel-in-ltr { from { opacity: 0; transform: translateX(24px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes context-panel-out-ltr { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(18px) scale(.99); } }
+
+.status-globe {
+  color: white;
+  background: transparent;
+  perspective: 40px;
+  transform-style: preserve-3d;
+}
+.status-globe svg {
+  fill: var(--orb-color);
+  stroke: white;
+  border-radius: 50%;
+  filter: saturate(1.35) contrast(1.08) drop-shadow(0 0 2px color-mix(in srgb, var(--orb-color) 70%, transparent));
+  transform-origin: center;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.status-orb-anchor:hover .status-globe svg,
+.status-orb-anchor:focus .status-globe svg {
+  animation: globe-y-spin 850ms linear infinite;
+}
+@keyframes globe-y-spin {
+  0% { transform: rotateY(0deg) scaleX(1); }
+  25% { transform: rotateY(90deg) scaleX(.62); }
+  50% { transform: rotateY(180deg) scaleX(1); }
+  75% { transform: rotateY(270deg) scaleX(.62); }
+  100% { transform: rotateY(360deg) scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .status-orb-anchor:hover .status-globe svg,
+  .status-orb-anchor:focus .status-globe svg { animation: none; }
 }
 
 /* Midnight AI palette: blue-black depth, violet energy and cool cyan detail. */
@@ -112,6 +201,18 @@ html.dark .shadow-xl {
 }
 html.dark ::selection { background: rgb(124 58 237 / .5); color: white; }
 .project-card-header { background: transparent; }
+.workspace-sidebar {
+  transition-property: width, background-color, border-color, box-shadow;
+  transition-duration: 320ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 8px 0 28px rgb(15 23 42 / .025);
+}
+.workspace-sidebar nav a {
+  transition-property: color, background-color, box-shadow, transform;
+}
+.workspace-sidebar nav a:hover { transform: translateX(-2px); }
+html[dir="ltr"] .workspace-sidebar nav a:hover { transform: translateX(2px); }
+.workspace-sidebar nav a:active { transform: scale(.97); }
 .project-links-scroll { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
 .project-links-scroll::-webkit-scrollbar { width: 5px; }
 .project-links-scroll::-webkit-scrollbar-track { background: transparent; }

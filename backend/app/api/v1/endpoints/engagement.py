@@ -11,6 +11,7 @@ from app.schemas.engagement import (
     ClickTrendPoint,
     NotificationResponse,
     TopProjectResponse,
+    HealthSummaryResponse,
     VisitResponse,
 )
 
@@ -28,6 +29,11 @@ async def activity(service: EngagementSvc, current_user: CurrentUser):
 @router.get("/analytics", response_model=AnalyticsResponse)
 async def analytics(service: EngagementSvc, current_user: CurrentUser):
     return await service.analytics(current_user.id)
+
+
+@router.get("/analytics/health-summary", response_model=HealthSummaryResponse)
+async def health_summary(service: EngagementSvc, current_user: CurrentUser):
+    return await service.health_summary(current_user.id)
 
 
 @router.get("/analytics/clicks-trend", response_model=list[ClickTrendPoint])

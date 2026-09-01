@@ -42,6 +42,13 @@ async def add_member(
     return await service.add_member(workspace_id, payload.email, payload.role, current_user.id)
 
 
+@router.delete("/workspaces/{workspace_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_member(
+    workspace_id: UUID, member_id: UUID, service: CollaborationSvc, current_user: CurrentUser
+) -> None:
+    await service.remove_member(workspace_id, member_id, current_user.id)
+
+
 @router.post(
     "/workspaces/{workspace_id}/invitations",
     response_model=InvitationResponse,

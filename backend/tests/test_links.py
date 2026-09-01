@@ -1,5 +1,6 @@
 from uuid import uuid4
 
+import httpx
 from fastapi.testclient import TestClient
 
 PROJECTS = "/api/v1/projects"
@@ -16,6 +17,86 @@ def test_create_link_under_a_project(client: TestClient, project: dict) -> None:
     assert body["project_id"] == project["id"]
     assert body["category"] == "environment"
     assert body["position"] == 0
+    assert body["health_status"] == "checking"
+    assert body["status_code"] is None
+    assert body["last_checked_at"] is None
+
+
+def test_on_demand_health_check_marks_200_as_healthy(
+    client: TestClient, project: dict, monkeypatch
+) -> None:
+    link = client.post(
+        f"{PROJECTS}/{project['id']}/links",
+        json={"title": "Healthy", "url": "https://example.com"},
+    ).json()
+
+    async def fake_head(self, url):  # noqa: ANN001
+        return httpx.Response(200, request=httpx.Request("HEAD", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "head", fake_head)
+    response = client.post(f"{LINKS}/{link['id']}/check-health")
+
+    assert response.status_code == 200
+    assert response.json()["health_status"] == "healthy"
+    assert response.json()["status_code"] == 200
+    assert response.json()["last_checked_at"] is not None
+    assert response.json()["response_time_ms"] is not None
+
+
+def test_health_check_uses_final_status_after_redirect(
+    client: TestClient, project: dict, monkeypatch
+) -> None:
+    link = client.post(
+        f"{PROJECTS}/{project['id']}/links",
+        json={"title": "Redirect", "url": "https://example.com/old"},
+    ).json()
+
+    async def fake_head(self, url):  # noqa: ANN001
+        request = httpx.Request("HEAD", url)
+        redirect = httpx.Response(301, request=request, headers={"location": "https://www.example.com/"})
+        return httpx.Response(200, request=request, history=[redirect])
+
+    monkeypatch.setattr(httpx.AsyncClient, "head", fake_head)
+    checked = client.post(f"{LINKS}/{link['id']}/check-health").json()
+    assert checked["health_status"] == "healthy"
+    assert checked["status_code"] == 200
+
+
+def test_health_check_marks_timeout_as_error(
+    client: TestClient, project: dict, monkeypatch
+) -> None:
+    link = client.post(
+        f"{PROJECTS}/{project['id']}/links",
+        json={"title": "Timeout", "url": "https://slow.example.com"},
+    ).json()
+
+    async def fake_head(self, url):  # noqa: ANN001
+        raise httpx.ReadTimeout("timed out", request=httpx.Request("HEAD", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "head", fake_head)
+    checked = client.post(f"{LINKS}/{link['id']}/check-health").json()
+    assert checked["health_status"] == "error"
+    assert checked["status_code"] is None
+
+
+def test_health_summary_counts_accessible_links(
+    client: TestClient, project: dict, monkeypatch
+) -> None:
+    link = client.post(
+        f"{PROJECTS}/{project['id']}/links",
+        json={"title": "Healthy", "url": "https://example.com"},
+    ).json()
+
+    async def fake_head(self, url):  # noqa: ANN001
+        return httpx.Response(200, request=httpx.Request("HEAD", url))
+
+    monkeypatch.setattr(httpx.AsyncClient, "head", fake_head)
+    client.post(f"{LINKS}/{link['id']}/check-health")
+    assert client.get("/api/v1/analytics/health-summary").json() == {
+        "healthy": 1,
+        "warning": 0,
+        "error": 0,
+    }
 
 
 def test_category_defaults_to_other(client: TestClient, project: dict) -> None:

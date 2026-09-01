@@ -113,7 +113,32 @@ class VisitRepository(SQLAlchemyRepository[LinkVisit]):
             .order_by(func.count(LinkVisit.id).desc(), Project.name.asc())
             .limit(limit)
         )
-        return [dict(row._mapping) for row in result.all()]
+        rows = [dict(row._mapping) for row in result.all()]
+        visitors_by_project: dict[UUID, list[dict]] = {row["id"]: [] for row in rows}
+        if rows:
+            visitors = await self.session.execute(
+                select(
+                    Project.id.label("project_id"),
+                    User.id,
+                    User.name,
+                    User.email,
+                )
+                .join(Link, Link.project_id == Project.id)
+                .join(LinkVisit, LinkVisit.link_id == Link.id)
+                .join(User, User.id == LinkVisit.user_id)
+                .where(Project.id.in_([row["id"] for row in rows]))
+                .distinct()
+                .order_by(User.name.asc())
+            )
+            for visitor in visitors.all():
+                visitors_by_project[visitor.project_id].append({
+                    "id": visitor.id,
+                    "name": visitor.name,
+                    "email": visitor.email,
+                })
+        for row in rows:
+            row["visitors"] = visitors_by_project[row["id"]]
+        return rows
 
 
 class NotificationRepository(SQLAlchemyRepository[Notification]):

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import String
+from sqlalchemy import Boolean, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -21,6 +21,19 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    avatar: Mapped[str | None] = mapped_column(Text, nullable=True)
+    theme: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="light", server_default="light"
+    )
+    direction: Mapped[str] = mapped_column(
+        String(8), nullable=False, default="rtl", server_default="rtl"
+    )
+    view_mode: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="grid", server_default="grid"
+    )
+    sidebar_collapsed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
     google_id: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,

@@ -13,6 +13,7 @@ import type {
   ProjectCreate,
   ProjectUpdate,
   User,
+  UserPreferences,
   ActivityEvent,
   Analytics,
   Notification,
@@ -21,15 +22,25 @@ import type {
   ClickTrendPoint,
   ActiveUsersMetric,
   TopProjectMetric,
+  HealthSummary,
 } from "@/types";
 
 export function getGoogleLoginUrl(): string {
-  return `${apiBaseURL}/auth/google/login?frontend=true`;
+  const nonce = crypto.randomUUID();
+  return `${apiBaseURL}/auth/google/login?frontend=true&nonce=${encodeURIComponent(nonce)}`;
 }
 
 export async function getCurrentUser(): Promise<User> {
   const { data } = await apiClient.get<User>("/auth/me");
   return data;
+}
+
+export async function updateUserAvatar(avatar: string | null): Promise<User> {
+  return (await apiClient.put<User>("/auth/me/avatar", { avatar })).data;
+}
+
+export async function updateUserPreferences(preferences: UserPreferences): Promise<User> {
+  return (await apiClient.put<User>("/auth/me/preferences", preferences)).data;
 }
 
 export async function getProjects(params: ListProjectsParams = {}): Promise<Project[]> {
@@ -84,6 +95,14 @@ export async function deleteLink(linkId: string): Promise<void> {
   await apiClient.delete(`/links/${linkId}`);
 }
 
+export async function checkLinkHealth(linkId: string): Promise<Link> {
+  return (await apiClient.post<Link>(`/links/${linkId}/check-health`)).data;
+}
+
+export async function checkAllLinkHealth(): Promise<number> {
+  return (await apiClient.post<{ queued: number }>("/links/check-all-health")).data.queued;
+}
+
 export async function setLinkBookmark(linkId: string, enabled: boolean): Promise<Link> {
   const { data } = enabled ? await apiClient.put<Link>(`/links/${linkId}/bookmark`) : await apiClient.delete<Link>(`/links/${linkId}/bookmark`);
   return data;
@@ -98,6 +117,7 @@ export async function getAnalytics(): Promise<Analytics> { return (await apiClie
 export async function getClicksTrend(interval: "daily" | "weekly" | "monthly"): Promise<ClickTrendPoint[]> { return (await apiClient.get<ClickTrendPoint[]>("/analytics/clicks-trend", { params: { interval, range: "30d" } })).data; }
 export async function getActiveUsers(range: "7d" | "30d" | "all"): Promise<ActiveUsersMetric> { return (await apiClient.get<ActiveUsersMetric>("/analytics/active-users", { params: { range } })).data; }
 export async function getTopProjects(limit = 5): Promise<TopProjectMetric[]> { return (await apiClient.get<TopProjectMetric[]>("/analytics/top-projects", { params: { limit } })).data; }
+export async function getHealthSummary(): Promise<HealthSummary> { return (await apiClient.get<HealthSummary>("/analytics/health-summary")).data; }
 export async function getNotifications(): Promise<Notification[]> { return (await apiClient.get<Notification[]>("/notifications")).data; }
 export async function getUnreadNotificationCount(): Promise<number> { return (await apiClient.get<{ count: number }>("/notifications/unread-count")).data.count; }
 export async function markAllNotificationsRead(): Promise<void> { await apiClient.put("/notifications/read-all"); }
@@ -105,3 +125,4 @@ export async function recordLinkVisit(linkId: string): Promise<string> { return 
 export async function getWorkspaces(): Promise<Workspace[]> { return (await apiClient.get<Workspace[]>("/workspaces")).data; }
 export async function createTeam(workspaceId: string, name: string): Promise<Team> { return (await apiClient.post<Team>(`/workspaces/${workspaceId}/teams`, { name })).data; }
 export async function addWorkspaceMember(workspaceId: string, email: string, role: string): Promise<void> { await apiClient.post(`/workspaces/${workspaceId}/invitations`, { email, role }); }
+export async function removeWorkspaceMember(workspaceId: string, memberId: string): Promise<void> { await apiClient.delete(`/workspaces/${workspaceId}/members/${memberId}`); }

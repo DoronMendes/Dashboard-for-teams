@@ -116,8 +116,24 @@ class OAuthService:
                 response = await client.post(token_url, data=data)
                 response.raise_for_status()
                 access_token = response.json().get("access_token")
+        except httpx.HTTPStatusError as exc:
+            # OAuth providers return a small, standardized JSON error body. Keep
+            # tokens and request data private, but expose the provider's error
+            # code/description so configuration problems can actually be fixed.
+            try:
+                error_body = exc.response.json()
+            except ValueError:
+                error_body = {}
+            error_code = str(error_body.get("error", "provider_error"))
+            error_description = str(error_body.get("error_description", "")).strip()
+            detail = f"{provider.title()} token exchange failed: {error_code}"
+            if error_description:
+                detail = f"{detail} — {error_description}"
+            raise OAuthProviderError(detail) from exc
         except (httpx.HTTPError, ValueError) as exc:
-            raise OAuthProviderError(f"{provider.title()} token exchange failed") from exc
+            raise OAuthProviderError(
+                f"{provider.title()} token exchange failed: {type(exc).__name__}"
+            ) from exc
         if not access_token:
             raise OAuthProviderError(f"{provider.title()} returned no access token")
         return str(access_token)

@@ -78,6 +78,11 @@ class ProjectService:
             raise EntityNotFoundError("Project not found or insufficient permission")
         # exclude_unset -> an omitted field is left alone, an explicit null clears it
         changes = payload.model_dump(exclude_unset=True)
+        personal_pin = changes.pop("is_pinned", None)
+        if personal_pin is not None:
+            await self.projects.set_pin(owner_id, project_id, personal_pin)
+            from sqlalchemy.orm.attributes import set_committed_value
+            set_committed_value(project, "is_pinned", personal_pin)
         if not changes:
             return project
         new_name = changes.get("name")

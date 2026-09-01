@@ -6,11 +6,11 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 
-from app.api.deps import AuthSvc, CurrentUser, OAuthSvc
+from app.api.deps import AuthSvc, CurrentUser, OAuthSvc, UserRepo
 from app.core.config import settings
 from app.core.exceptions import AccountAccessDeniedError
 from app.core.security import create_access_token
-from app.schemas.auth import TokenResponse, UserResponse
+from app.schemas.auth import AvatarUpdate, TokenResponse, UserPreferencesUpdate, UserResponse
 from app.services.oauth import create_oauth_challenge
 
 router = APIRouter()
@@ -55,6 +55,8 @@ def _start_login(provider: str, oauth: OAuthSvc, *, frontend: bool) -> RedirectR
         challenge=challenge,
     )
     response = RedirectResponse(authorization_url, status_code=status.HTTP_302_FOUND)
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
     _set_oauth_cookie(response, provider, "state", state_value)
     _set_oauth_cookie(response, provider, "verifier", verifier)
     _set_oauth_cookie(
@@ -142,7 +144,9 @@ async def _finish_login(
 async def google_login(
     oauth: OAuthSvc,
     frontend: bool = Query(default=False),
+    nonce: str | None = Query(default=None, max_length=128),
 ) -> RedirectResponse:
+    del nonce  # cache-busting only; it is deliberately not part of OAuth state
     return _start_login("google", oauth, frontend=frontend)
 
 
@@ -205,3 +209,25 @@ async def microsoft_callback(
 @router.get("/me", response_model=UserResponse, summary="Get the authenticated user")
 async def get_me(current_user: CurrentUser) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.put("/me/avatar", response_model=UserResponse, summary="Update profile avatar")
+async def update_avatar(
+    payload: AvatarUpdate, current_user: CurrentUser, users: UserRepo
+) -> UserResponse:
+    updated = await users.update(current_user, {"avatar": payload.avatar})
+    return UserResponse.model_validate(updated)
+
+
+@router.put(
+    "/me/preferences",
+    response_model=UserResponse,
+    summary="Update personal UI preferences",
+)
+async def update_preferences(
+    payload: UserPreferencesUpdate,
+    current_user: CurrentUser,
+    users: UserRepo,
+) -> UserResponse:
+    updated = await users.update(current_user, payload.model_dump(exclude_none=True))
+    return UserResponse.model_validate(updated)

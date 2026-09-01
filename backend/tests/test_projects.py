@@ -6,10 +6,11 @@ BASE = "/api/v1/projects"
 
 
 def test_create_returns_201_with_generated_fields(client: TestClient) -> None:
-    response = client.post(BASE, json={"name": "Billing", "description": "Invoices"})
+    response = client.post(BASE, json={"name": "Billing", "icon": "💳", "description": "Invoices"})
     assert response.status_code == 201
     body = response.json()
     assert body["name"] == "Billing"
+    assert body["icon"] == "💳"
     assert body["is_pinned"] is False
     assert body["position"] == 0
     assert body["links"] == []
@@ -120,6 +121,29 @@ def test_update_changes_only_supplied_fields(client: TestClient, project: dict) 
     body = client.put(f"{BASE}/{project['id']}", json={"description": "Updated"}).json()
     assert body["description"] == "Updated"
     assert body["name"] == project["name"]  # untouched
+
+
+def test_project_icon_can_be_changed_and_cleared(client: TestClient, project: dict) -> None:
+    updated = client.put(f"{BASE}/{project['id']}", json={"icon": "🚀"}).json()
+    assert updated["icon"] == "🚀"
+
+    cleared = client.put(f"{BASE}/{project['id']}", json={"icon": ""}).json()
+    assert cleared["icon"] is None
+
+
+def test_project_accepts_an_uploaded_image_icon(client: TestClient, project: dict) -> None:
+    icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
+    response = client.put(f"{BASE}/{project['id']}", json={"icon": icon})
+    assert response.status_code == 200
+    assert response.json()["icon"] == icon
+
+
+def test_project_rejects_unsafe_uploaded_icon_types(client: TestClient, project: dict) -> None:
+    response = client.put(
+        f"{BASE}/{project['id']}",
+        json={"icon": "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="},
+    )
+    assert response.status_code == 422
 
 
 def test_update_rejects_a_name_owned_by_another_project(client: TestClient, project: dict) -> None:

@@ -1,10 +1,12 @@
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.orm import with_loader_criteria
 
 from app.models.link import Link
 from app.models.project import Project
 from app.models.collaboration import WorkspaceMembership
+from app.models.taxonomy import Bookmark
 from app.repositories.base import SQLAlchemyRepository
 
 
@@ -14,11 +16,44 @@ class LinkRepository(SQLAlchemyRepository[Link]):
     async def get_for_owner(self, link_id: UUID, owner_id: UUID) -> Link | None:
         result = await self.session.execute(
             select(Link)
+            .options(with_loader_criteria(Bookmark, Bookmark.user_id == owner_id))
             .join(Project, Project.id == Link.project_id)
             .where(Link.id == link_id, Project.workspace_id.in_(select(WorkspaceMembership.workspace_id).where(WorkspaceMembership.user_id == owner_id))),
             execution_options=self._READ_OPTIONS,
         )
         return result.scalar_one_or_none()
+
+    async def list_for_owner(self, owner_id: UUID) -> list[Link]:
+        result = await self.session.execute(
+            select(Link)
+            .options(with_loader_criteria(Bookmark, Bookmark.user_id == owner_id))
+            .join(Project, Project.id == Link.project_id)
+            .where(
+                Project.workspace_id.in_(
+                    select(WorkspaceMembership.workspace_id).where(
+                        WorkspaceMembership.user_id == owner_id
+                    )
+                )
+            )
+            .order_by(Link.created_at.asc())
+        )
+        return list(result.scalars().unique().all())
+
+    async def health_summary(self, owner_id: UUID) -> dict[str, int]:
+        result = await self.session.execute(
+            select(Link.health_status, func.count(Link.id))
+            .join(Project, Project.id == Link.project_id)
+            .where(
+                Project.workspace_id.in_(
+                    select(WorkspaceMembership.workspace_id).where(
+                        WorkspaceMembership.user_id == owner_id
+                    )
+                )
+            )
+            .group_by(Link.health_status)
+        )
+        counts = {status: int(count) for status, count in result.all()}
+        return {key: counts.get(key, 0) for key in ("healthy", "warning", "error")}
 
     async def list_by_project(
         self,
