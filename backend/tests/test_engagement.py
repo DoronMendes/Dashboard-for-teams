@@ -44,3 +44,32 @@ def test_activity_analytics_visit_and_empty_notifications(
     assert leaders.json()[0]["traffic_share"] == 100.0
     assert client.get("/api/v1/notifications").json() == []
     assert client.get("/api/v1/notifications/unread-count").json() == {"count": 0}
+
+
+def test_issue_report_notifies_workspace_owner(client: TestClient, project: dict) -> None:
+    response = client.post(
+        "/api/v1/issue-reports",
+        json={
+            "workspace_id": project["workspace_id"],
+            "title": "Dashboard button is stuck",
+            "description": "The button does not respond after clicking it twice.",
+            "category": "display",
+            "urgency": "normal",
+            "page_url": "http://localhost:5173/settings",
+        },
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["status"] == "new"
+    notifications = client.get("/api/v1/notifications").json()
+    assert len(notifications) == 1
+    assert notifications[0]["kind"] == "issue_report"
+    assert "Dashboard button is stuck" in notifications[0]["message"]
+    assert "The button does not respond after clicking it twice." in notifications[0]["message"]
+    assert notifications[0]["target_path"] == f'/issue-reports/{response.json()["id"]}'
+    report_details = client.get(f'/api/v1/issue-reports/{response.json()["id"]}')
+    assert report_details.status_code == 200, report_details.text
+    assert report_details.json()["description"] == "The button does not respond after clicking it twice."
+    assert report_details.json()["workspace_name"]
+    assert report_details.json()["reporter_name"]
+    assert client.get("/api/v1/notifications/unread-count").json() == {"count": 1}

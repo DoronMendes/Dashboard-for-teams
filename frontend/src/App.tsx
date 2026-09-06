@@ -14,6 +14,7 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/bookmarks" element={<DashboardPage />} />
         <Route path="/analytics" element={<DashboardPage />} />
+        <Route path="/excel-import" element={<DashboardPage />} />
         <Route path="/settings" element={<DashboardPage />} />
         <Route path="/admin" element={<DashboardPage />} />
       </Route>

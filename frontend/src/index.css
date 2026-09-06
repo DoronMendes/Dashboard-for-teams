@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+.group\/notifications .space-y-1 > div {
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.group\/notifications .space-y-1 > div:hover {
+  background-color: rgb(238 242 255);
+  color: rgb(67 56 202);
+}
+
 /* ---------------------------------------------------------------------------
    Design tokens. Tailwind v4 is CSS-first: everything declared in @theme
    becomes a utility (--color-board -> bg-board, --font-display -> font-display).

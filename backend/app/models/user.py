@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, String, Text
+from sqlalchemy import Boolean, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -34,6 +34,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     sidebar_collapsed: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true"
+    )
+    token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default="1"
+    )
     google_id: Mapped[str | None] = mapped_column(
         String(255),
         nullable=True,
@@ -53,9 +59,15 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         passive_deletes=True,
         lazy="selectin",
     )
-    created_links: Mapped[list["Link"]] = relationship(back_populates="creator", cascade="all, delete-orphan", passive_deletes=True)
-    tags: Mapped[list["Tag"]] = relationship(back_populates="owner", cascade="all, delete-orphan", passive_deletes=True)
-    bookmarks: Mapped[list["Bookmark"]] = relationship(back_populates="user", cascade="all, delete-orphan", passive_deletes=True)
+    created_links: Mapped[list["Link"]] = relationship(
+        back_populates="creator", cascade="all, delete-orphan", passive_deletes=True
+    )
+    tags: Mapped[list["Tag"]] = relationship(
+        back_populates="owner", cascade="all, delete-orphan", passive_deletes=True
+    )
+    bookmarks: Mapped[list["Bookmark"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<User id={self.id} email={self.email!r}>"

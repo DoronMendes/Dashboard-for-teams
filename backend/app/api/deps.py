@@ -7,11 +7,12 @@ the whole layer beneath it.
 
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Query, status
+from fastapi import Depends, HTTPException, Query, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.access import is_email_allowed
+from app.core.config import settings
 from app.core.security import InvalidAccessTokenError, decode_access_token
 from app.db.session import get_db_session
 from app.models.user import User
@@ -82,6 +83,7 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     users: UserRepo,
     collaboration: CollaborationRepo,
@@ -91,14 +93,22 @@ async def get_current_user(
         detail="Invalid or missing access token",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    if credentials is None or credentials.scheme.lower() != "bearer":
+    token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if token is None and credentials is not None and credentials.scheme.lower() == "bearer":
+        token = credentials.credentials
+    if token is None:
         raise unauthorized
     try:
-        user_id = decode_access_token(credentials.credentials)
+        claims = decode_access_token(token)
     except InvalidAccessTokenError as exc:
         raise unauthorized from exc
-    user = await users.get_user(user_id)
-    if user is None:
+    user = await users.get_user(claims.user_id)
+    if (
+        user is None
+        or not user.is_active
+        or user.token_version != claims.token_version
+        or user.email.casefold() != claims.email.casefold()
+    ):
         raise unauthorized
     if not is_email_allowed(user.email) and not await collaboration.memberships(user.id):
         raise HTTPException(

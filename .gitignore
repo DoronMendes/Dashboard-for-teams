@@ -2,6 +2,11 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.uv-cache/
+.vs/
+.codex-github-sync/
+outputs/
+repo_structure.txt
 .env
 .env.*
 !.env.example
@@ -9,6 +14,7 @@ venv/
 .ruff_cache/
 .mypy_cache/
 *.egg-info/
+*.log
 .DS_Store
 .idea/
 .vscode/

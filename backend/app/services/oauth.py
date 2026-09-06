@@ -7,13 +7,15 @@ from dataclasses import dataclass
 from urllib.parse import urlencode
 
 import httpx
+import jwt
 
 from app.core.config import settings
 from app.core.exceptions import OAuthConfigurationError, OAuthProviderError
 
 GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-GOOGLE_USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
+GOOGLE_JWKS_URL = "https://www.googleapis.com/oauth2/v3/certs"
+GOOGLE_ISSUERS = {"accounts.google.com", "https://accounts.google.com"}
 
 MICROSOFT_GRAPH_ME_URL = "https://graph.microsoft.com/v1.0/me"
 
@@ -59,9 +61,8 @@ class OAuthService:
                 "response_type": "code",
                 "scope": "openid email profile",
                 "state": state,
-                "code_challenge": challenge,
-                "code_challenge_method": "S256",
                 "access_type": "online",
+                "prompt": "select_account",
             }
         elif provider == "microsoft":
             base_url = (
@@ -90,7 +91,6 @@ class OAuthService:
                 "client_id": settings.GOOGLE_CLIENT_ID,
                 "client_secret": settings.GOOGLE_CLIENT_SECRET,
                 "code": code,
-                "code_verifier": verifier,
                 "grant_type": "authorization_code",
                 "redirect_uri": settings.GOOGLE_REDIRECT_URI,
             }
@@ -115,7 +115,7 @@ class OAuthService:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.post(token_url, data=data)
                 response.raise_for_status()
-                access_token = response.json().get("access_token")
+                token_data = response.json()
         except httpx.HTTPStatusError as exc:
             # OAuth providers return a small, standardized JSON error body. Keep
             # tokens and request data private, but expose the provider's error
@@ -134,18 +134,19 @@ class OAuthService:
             raise OAuthProviderError(
                 f"{provider.title()} token exchange failed: {type(exc).__name__}"
             ) from exc
-        if not access_token:
-            raise OAuthProviderError(f"{provider.title()} returned no access token")
-        return str(access_token)
+        token_field = "id_token" if provider == "google" else "access_token"
+        provider_token = token_data.get(token_field)
+        if not provider_token:
+            raise OAuthProviderError(f"{provider.title()} returned no {token_field}")
+        return str(provider_token)
 
     async def fetch_profile(self, provider: str, access_token: str) -> OAuthProfile:
+        if provider == "google":
+            return await self._verify_google_id_token(access_token)
+
         headers = {"Authorization": f"Bearer {access_token}"}
-        url = GOOGLE_USERINFO_URL if provider == "google" else MICROSOFT_GRAPH_ME_URL
-        params = (
-            None
-            if provider == "google"
-            else {"$select": "id,displayName,mail,userPrincipalName"}
-        )
+        url = MICROSOFT_GRAPH_ME_URL
+        params = {"$select": "id,displayName,mail,userPrincipalName"}
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 response = await client.get(url, headers=headers, params=params)
@@ -154,13 +155,7 @@ class OAuthService:
         except (httpx.HTTPError, ValueError) as exc:
             raise OAuthProviderError(f"{provider.title()} profile request failed") from exc
 
-        if provider == "google":
-            if data.get("email_verified") is not True:
-                raise OAuthProviderError("Google did not return a verified email address")
-            provider_id = data.get("sub")
-            email = data.get("email")
-            name = data.get("name")
-        elif provider == "microsoft":
+        if provider == "microsoft":
             provider_id = data.get("id")
             email = data.get("mail") or data.get("userPrincipalName")
             name = data.get("displayName")
@@ -174,4 +169,41 @@ class OAuthService:
             provider_id=str(provider_id),
             email=str(email).strip().lower(),
             name=str(name or email).strip(),
+        )
+
+    async def _verify_google_id_token(self, id_token: str) -> OAuthProfile:
+        """Verify Google's signature and all identity-defining OIDC claims."""
+        try:
+            header = jwt.get_unverified_header(id_token)
+            if header.get("alg") != "RS256" or not header.get("kid"):
+                raise OAuthProviderError("Google ID token uses an unexpected signing key")
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.get(GOOGLE_JWKS_URL)
+                response.raise_for_status()
+                keys = response.json().get("keys", [])
+            jwk_data = next((key for key in keys if key.get("kid") == header["kid"]), None)
+            if jwk_data is None:
+                raise OAuthProviderError("Google ID token signing key was not found")
+            signing_key = jwt.PyJWK.from_dict(jwk_data, algorithm="RS256").key
+            claims = jwt.decode(
+                id_token,
+                signing_key,
+                algorithms=["RS256"],
+                audience=settings.GOOGLE_CLIENT_ID,
+                issuer=list(GOOGLE_ISSUERS),
+                options={"require": ["aud", "iss", "exp", "sub", "email"]},
+            )
+        except OAuthProviderError:
+            raise
+        except (httpx.HTTPError, jwt.PyJWTError, KeyError, TypeError, ValueError) as exc:
+            raise OAuthProviderError("Google ID token validation failed") from exc
+
+        if claims.get("email_verified") is not True:
+            raise OAuthProviderError("Google did not return a verified email address")
+        email = str(claims["email"]).strip().lower()
+        return OAuthProfile(
+            provider="google",
+            provider_id=str(claims["sub"]),
+            email=email,
+            name=str(claims.get("name") or email).strip(),
         )

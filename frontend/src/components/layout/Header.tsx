@@ -1,13 +1,23 @@
 import { Bell, CalendarDays, ChevronDown, Filter, Link2, Moon, Plus, Search, Sun, Tags, Users, X } from "lucide-react";
+import { useState } from "react";
 import { useAuth } from "@/auth/AuthContext";
+import { NotificationDetailsModal } from "@/components/feedback/NotificationDetailsModal";
 import { CATEGORY_LABELS, LINK_CATEGORIES, type Notification } from "@/types";
 
-interface HeaderProps { search: string; onSearchChange: (value: string) => void; onNewProject: () => void; onNewLink: () => void; direction: "rtl" | "ltr"; onDirectionChange: () => void; tagFilter: string; onTagFilterChange: (value: string) => void; categoryFilter: string; onCategoryFilterChange: (value: string) => void; tags: string[]; unreadCount: number; notifications: Notification[]; theme: "light" | "dark"; onThemeChange: () => void; }
+interface HeaderProps { search: string; onSearchChange: (value: string) => void; onNewProject: () => void; onNewLink: () => void; direction: "rtl" | "ltr"; onDirectionChange: () => void; tagFilter: string; onTagFilterChange: (value: string) => void; categoryFilter: string; onCategoryFilterChange: (value: string) => void; tags: string[]; unreadCount: number; notifications: Notification[]; onNotificationsOpen: () => void; theme: "light" | "dark"; onThemeChange: () => void; }
 
-export function Header({ search, onSearchChange, onNewProject, onNewLink, direction, onDirectionChange, tagFilter, onTagFilterChange, categoryFilter, onCategoryFilterChange, tags, unreadCount, notifications, theme, onThemeChange }: HeaderProps) {
+export function Header({ search, onSearchChange, onNewProject, onNewLink, direction, onDirectionChange, tagFilter, onTagFilterChange, categoryFilter, onCategoryFilterChange, tags, unreadCount, notifications, onNotificationsOpen, theme, onThemeChange }: HeaderProps) {
   const { user, logout } = useAuth();
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
   const initials = (user?.name || "User").split(" ").map((part) => part[0]).join("").slice(0, 2);
-  return <header className="workspace-header sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
+  return <header onClickCapture={(event) => {
+    if ((event.target as HTMLElement).closest('button[aria-label="Notifications"]')) onNotificationsOpen();
+    const notificationElement = (event.target as HTMLElement).closest(".space-y-1 > div");
+    if (notificationElement) {
+      const index = Array.from(notificationElement.parentElement?.children ?? []).indexOf(notificationElement);
+      if (index >= 0 && notifications[index]) setSelectedNotification(notifications[index]);
+    }
+  }} className="workspace-header sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur-xl">
     <div className="flex min-h-14 flex-wrap items-center gap-2 px-4 py-2 xl:px-5">
       <div className="relative min-w-[15rem] flex-1 xl:max-w-md"><Search className="pointer-events-none absolute start-3 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" /><input type="search" value={search} onChange={(e) => onSearchChange(e.target.value)} placeholder={direction === "rtl" ? "חיפוש קישורים, פרויקטים ואנשים..." : "Search links, projects and people..."} aria-label="Global search" className="h-9 w-full rounded-lg border border-slate-200 bg-white pe-16 ps-9 text-xs outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-100" />{search ? <button onClick={() => onSearchChange("")} className="absolute end-3 top-1/2 -translate-y-1/2 rounded p-1 text-slate-400 hover:bg-slate-100"><X className="size-3" /></button> : <kbd className="absolute end-3 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[9px] text-slate-400">Ctrl K</kbd>}</div>
       <div className="hidden items-center gap-2 lg:flex"><FilterSelect icon={Tags} value={tagFilter} onChange={onTagFilterChange} label={direction === "rtl" ? "כל התגיות" : "All tags"} options={tags.map((tag) => [tag, tag])} /><FilterSelect icon={Filter} value={categoryFilter} onChange={onCategoryFilterChange} label={direction === "rtl" ? "כל הקטגוריות" : "All categories"} options={LINK_CATEGORIES.map((category) => [category, direction === "rtl" ? CATEGORY_LABELS[category] : category])} /></div>
@@ -15,6 +25,7 @@ export function Header({ search, onSearchChange, onNewProject, onNewLink, direct
         <div className="group relative"><button className="flex items-center gap-2 rounded-full p-1 transition hover:bg-slate-50" aria-label="User menu"><span className="grid size-9 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-sm font-bold text-white ring-2 ring-white shadow-sm">{user?.avatar?.startsWith("data:image/") ? <img src={user.avatar} alt="" className="size-full object-cover" /> : user?.avatar ? <span className="text-xl">{user.avatar}</span> : initials}</span><ChevronDown className="hidden size-3.5 text-slate-400 sm:block" /></button><div className="invisible absolute end-0 top-full w-52 translate-y-1 rounded-xl border border-slate-200 bg-white p-2 opacity-0 shadow-xl transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"><div className="border-b border-slate-100 px-2 py-2"><p className="truncate text-sm font-bold">{user?.name}</p><p className="truncate text-xs text-slate-500" dir="ltr">{user?.email}</p></div><button onClick={onDirectionChange} className="mt-1 w-full rounded-lg px-2 py-2 text-start text-xs hover:bg-slate-50">{direction === "rtl" ? "Switch to English (LTR)" : "החלפה לעברית (RTL)"}</button><button onClick={logout} className="w-full rounded-lg px-2 py-2 text-start text-xs text-rose-600 hover:bg-rose-50">{direction === "rtl" ? "יציאה" : "Sign out"}</button></div></div>
       </div>
     </div><div className="flex gap-2 overflow-x-auto px-4 pb-3 lg:hidden"><FilterChip icon={Filter} label={direction === "rtl" ? "סינון" : "Filters"} /><FilterChip icon={Users} label={direction === "rtl" ? "צוות" : "Team"} /><FilterChip icon={CalendarDays} label={direction === "rtl" ? "תאריך" : "Date"} /></div>
+    <NotificationDetailsModal notification={selectedNotification} direction={direction} onClose={() => setSelectedNotification(null)} />
   </header>;
 }
 function FilterChip({ icon: Icon, label }: { icon: typeof Tags; label: string }) { return <button className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"><Icon className="size-3.5" />{label}<ChevronDown className="size-3" /></button>; }

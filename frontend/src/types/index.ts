@@ -130,3 +130,7 @@ export interface TopProjectMetric { id: string; name: string; creator_name: stri
 export interface Notification { id: string; kind: string; message: string; target_path: string | null; is_read: boolean; created_at: string; updated_at: string; }
 export interface Team { id: string; workspace_id: string; name: string; created_at: string; updated_at: string; }
 export interface Workspace { id: string; name: string; role: "owner" | "admin" | "editor" | "viewer"; teams: Team[]; members: Array<{ id: string; name: string; email: string; role: string }>; created_at: string; updated_at: string; }
+export interface SpreadsheetImportResult { projects_created: number; links_created: number; }
+export interface IssueReportCreate { workspace_id: string; title: string; description: string; category: "display" | "link" | "permissions" | "login" | "other"; urgency: "low" | "normal" | "high"; page_url?: string | null; }
+export interface IssueReport extends IssueReportCreate { id: string; reporter_id: string; status: string; created_at: string; updated_at: string; }
+export interface IssueReportDetail extends IssueReport { reporter_name: string; reporter_email: string; workspace_name: string; }

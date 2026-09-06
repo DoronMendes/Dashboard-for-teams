@@ -1,24 +1,15 @@
 import axios, { AxiosError } from "axios";
 
-import {
-  AUTH_UNAUTHORIZED_EVENT,
-  clearStoredAccessToken,
-  getStoredAccessToken,
-} from "@/auth/tokenStorage";
+import { AUTH_UNAUTHORIZED_EVENT } from "@/auth/tokenStorage";
 
 export const apiBaseURL =
   import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8010/api/v1";
 
 export const apiClient = axios.create({
   baseURL: apiBaseURL,
+  withCredentials: true,
   timeout: 10_000,
   headers: { "Content-Type": "application/json" },
-});
-
-apiClient.interceptors.request.use((config) => {
-  const accessToken = getStoredAccessToken();
-  if (accessToken) config.headers.set("Authorization", `Bearer ${accessToken}`);
-  return config;
 });
 
 /** Shape of the backend's domain errors (see app/core/exceptions.py). */
@@ -100,9 +91,8 @@ apiClient.interceptors.response.use(
   (error: unknown) => {
     if (
       axios.isAxiosError(error) &&
-      (error.response?.status === 401 || error.response?.status === 403)
+      error.response?.status === 401
     ) {
-      clearStoredAccessToken();
       window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
     }
     return Promise.reject(toApiError(error));

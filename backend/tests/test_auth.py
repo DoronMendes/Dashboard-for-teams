@@ -1,8 +1,9 @@
 import asyncio
 from urllib.parse import parse_qs, urlparse
 
-import pytest
 import httpx
+import jwt
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -11,10 +12,10 @@ from app.core.config import settings
 from app.core.exceptions import AccountAccessDeniedError, OAuthProviderError
 from app.core.security import create_access_token, decode_access_token
 from app.main import app
+from app.models.collaboration import Workspace, WorkspaceMembership
 from app.models.link import Link
 from app.models.project import Project
 from app.models.user import User
-from app.models.collaboration import Workspace, WorkspaceMembership
 from app.services.auth import AuthService
 from app.services.oauth import OAuthProfile, OAuthService
 from tests.conftest import make_test_engine
@@ -24,8 +25,21 @@ def test_access_token_round_trip() -> None:
     import uuid
 
     user_id = uuid.uuid4()
-    token = create_access_token(user_id=user_id, email="test@example.com")
-    assert decode_access_token(token) == user_id
+    token = create_access_token(
+        user_id=user_id,
+        email="test@example.com",
+        token_version=1,
+    )
+    assert decode_access_token(token).user_id == user_id
+    payload = jwt.decode(
+        token,
+        settings.JWT_SECRET_KEY,
+        algorithms=[settings.JWT_ALGORITHM],
+    )
+    assert payload["sub"] == str(user_id)
+    assert payload["email"] == "test@example.com"
+    assert payload["token_version"] == 1
+    assert payload["exp"] - payload["iat"] == settings.SESSION_TOKEN_EXPIRE_DAYS * 86400
 
 
 def test_protected_route_rejects_missing_token(client: TestClient) -> None:
@@ -72,7 +86,7 @@ async def test_oauth_exchange_preserves_safe_google_error_detail(
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_SECRET", "client-secret")
 
     async def fake_post(self, url, *, data):  # noqa: ANN001
-        assert data["code_verifier"] == "verifier"
+        assert "code_verifier" not in data
         request = httpx.Request("POST", url)
         return httpx.Response(
             400,
@@ -86,7 +100,48 @@ async def test_oauth_exchange_preserves_safe_google_error_detail(
         await OAuthService().exchange_code("google", code="expired", verifier="verifier")
 
 
-def test_google_authorization_sends_pkce(
+@pytest.mark.asyncio
+async def test_google_id_token_verification_enforces_oidc_claims(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "expected-client-id")
+    monkeypatch.setattr(jwt, "get_unverified_header", lambda _token: {"alg": "RS256", "kid": "k1"})
+
+    class FakeJwk:
+        key = object()
+
+    monkeypatch.setattr(jwt.PyJWK, "from_dict", lambda *_args, **_kwargs: FakeJwk())
+
+    async def fake_get(self, url):  # noqa: ANN001
+        request = httpx.Request("GET", url)
+        return httpx.Response(200, request=request, json={"keys": [{"kid": "k1"}]})
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
+
+    def fake_decode(token, key, **kwargs):  # noqa: ANN001
+        assert token == "signed-google-id-token"
+        assert key is FakeJwk.key
+        assert kwargs["algorithms"] == ["RS256"]
+        assert kwargs["audience"] == "expected-client-id"
+        assert set(kwargs["issuer"]) == {
+            "accounts.google.com",
+            "https://accounts.google.com",
+        }
+        assert "exp" in kwargs["options"]["require"]
+        return {
+            "sub": "google-user",
+            "email": "USER@example.com",
+            "email_verified": True,
+            "name": "User",
+        }
+
+    monkeypatch.setattr(jwt, "decode", fake_decode)
+    profile = await OAuthService().fetch_profile("google", "signed-google-id-token")
+    assert profile.provider_id == "google-user"
+    assert profile.email == "user@example.com"
+
+
+def test_google_authorization_uses_confidential_web_flow(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "client-id")
@@ -94,17 +149,16 @@ def test_google_authorization_sends_pkce(
 
     query = parse_qs(
         urlparse(
-            OAuthService().authorization_url(
-                "google", state="state", challenge="unused-challenge"
-            )
+            OAuthService().authorization_url("google", state="state", challenge="unused-challenge")
         ).query
     )
 
-    assert query["code_challenge"] == ["unused-challenge"]
-    assert query["code_challenge_method"] == ["S256"]
+    assert "code_challenge" not in query
+    assert "code_challenge_method" not in query
+    assert query["prompt"] == ["select_account"]
 
 
-def test_google_frontend_flow_redirects_with_application_token(
+def test_google_frontend_flow_sets_httponly_session_cookie(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -148,11 +202,25 @@ def test_google_frontend_flow_redirects_with_application_token(
     assert login.headers["cache-control"] == "no-store, max-age=0"
     redirect = urlparse(callback.headers["location"])
     assert f"{redirect.scheme}://{redirect.netloc}{redirect.path}" == (
-        "http://localhost:5173/auth/callback"
+        "http://127.0.0.1:5173/auth/callback"
     )
-    fragment = parse_qs(redirect.fragment)
-    assert fragment["token_type"] == ["bearer"]
-    assert decode_access_token(fragment["access_token"][0])
+    assert redirect.fragment == ""
+    session_cookie = callback.cookies.get(settings.SESSION_COOKIE_NAME)
+    assert session_cookie
+    assert decode_access_token(session_cookie).token_version == 1
+    set_cookie = callback.headers["set-cookie"].lower()
+    assert "httponly" in set_cookie
+    assert "samesite=lax" in set_cookie
+    assert f"max-age={settings.SESSION_TOKEN_EXPIRE_DAYS * 86400}" in set_cookie
+
+    current_user_override = app.dependency_overrides.pop(get_current_user)
+    try:
+        assert client.get("/api/v1/auth/me").status_code == 200
+        logout = client.post("/api/v1/auth/logout")
+        assert logout.status_code == 204
+        assert client.get("/api/v1/auth/me").status_code == 401
+    finally:
+        app.dependency_overrides[get_current_user] = current_user_override
 
 
 @pytest.mark.asyncio
@@ -192,7 +260,13 @@ def test_user_cannot_access_another_users_project_or_link(client: TestClient) ->
                 workspace = Workspace(name="Other Workspace")
                 session.add(workspace)
                 await session.flush()
-                session.add(WorkspaceMembership(workspace_id=workspace.id, user_id=other_user.id, role="owner"))
+                session.add(
+                    WorkspaceMembership(
+                        workspace_id=workspace.id,
+                        user_id=other_user.id,
+                        role="owner",
+                    )
+                )
                 project = Project(name="Private", owner_id=other_user.id, workspace_id=workspace.id)
                 session.add(project)
                 await session.flush()

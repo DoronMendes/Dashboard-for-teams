@@ -52,8 +52,6 @@ class AvatarUpdate(BaseModel):
         return value
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+class SessionResponse(BaseModel):
     expires_in: int
     user: UserResponse

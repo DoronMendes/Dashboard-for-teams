@@ -12,7 +12,7 @@ __all__ = [
     "ProjectCreate",
     "ProjectResponse",
     "ProjectUpdate",
-    "TokenResponse",
+    "SessionResponse",
     "UserResponse",
 ]
-from app.schemas.auth import TokenResponse, UserResponse
+from app.schemas.auth import SessionResponse, UserResponse

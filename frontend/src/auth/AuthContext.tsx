@@ -8,14 +8,16 @@ import {
   useState,
 } from "react";
 
-import {
-  AUTH_UNAUTHORIZED_EVENT,
-  clearStoredAccessToken,
-  getStoredAccessToken,
-  storeAccessToken,
-} from "@/auth/tokenStorage";
+import { AUTH_UNAUTHORIZED_EVENT } from "@/auth/tokenStorage";
 import { queryClient } from "@/lib/queryClient";
-import { getCurrentUser, getGoogleLoginUrl, updateUserAvatar, updateUserPreferences } from "@/services/api";
+import {
+  getCurrentUser,
+  getGoogleLoginUrl,
+  logoutSession,
+  updateUserAvatar,
+  updateUserPreferences,
+} from "@/services/api";
+import { ApiError } from "@/services/apiClient";
 import type { User, UserPreferences } from "@/types";
 
 interface AuthContextValue {
@@ -23,8 +25,8 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   loginWithGoogle: () => void;
-  completeLogin: (accessToken: string) => Promise<void>;
-  logout: () => void;
+  completeLogin: () => Promise<void>;
+  logout: () => Promise<void>;
   setAvatar: (avatar: string | null) => Promise<void>;
   setPreferences: (preferences: UserPreferences) => Promise<void>;
 }
@@ -33,14 +35,21 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(() => Boolean(getStoredAccessToken()));
+  const [isLoading, setIsLoading] = useState(true);
 
-  const logout = useCallback(() => {
-    clearStoredAccessToken();
+  const clearClientSession = useCallback(() => {
     setUser(null);
     setIsLoading(false);
     queryClient.clear();
   }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await logoutSession();
+    } finally {
+      clearClientSession();
+    }
+  }, [clearClientSession]);
 
   const loadUser = useCallback(async () => {
     const currentUser = await getCurrentUser();
@@ -48,16 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const token = getStoredAccessToken();
-    if (!token) {
-      setIsLoading(false);
-      return;
-    }
-
     let cancelled = false;
     void loadUser()
-      .catch(() => {
-        if (!cancelled) logout();
+      .catch((error: unknown) => {
+        if (!cancelled && error instanceof ApiError && error.status === 401) {
+          clearClientSession();
+        }
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
@@ -65,12 +70,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [loadUser, logout]);
+  }, [loadUser, clearClientSession]);
 
   useEffect(() => {
-    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, logout);
-    return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, logout);
-  }, [logout]);
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, clearClientSession);
+    return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, clearClientSession);
+  }, [clearClientSession]);
 
   const loginWithGoogle = useCallback(() => {
     window.location.assign(getGoogleLoginUrl());
@@ -85,19 +90,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const completeLogin = useCallback(
-    async (accessToken: string) => {
-      storeAccessToken(accessToken);
+    async () => {
       setIsLoading(true);
       try {
         await loadUser();
       } catch (error) {
-        logout();
+        if (error instanceof ApiError && error.status === 401) clearClientSession();
         throw error;
       } finally {
         setIsLoading(false);
       }
     },
-    [loadUser, logout],
+    [loadUser, clearClientSession],
   );
 
   const value = useMemo<AuthContextValue>(

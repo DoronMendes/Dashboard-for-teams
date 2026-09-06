@@ -1,7 +1,6 @@
 """Google and Microsoft OAuth 2.0 entry points and callbacks."""
 
 import secrets
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
@@ -9,11 +8,40 @@ from fastapi.responses import RedirectResponse
 from app.api.deps import AuthSvc, CurrentUser, OAuthSvc, UserRepo
 from app.core.config import settings
 from app.core.exceptions import AccountAccessDeniedError
-from app.core.security import create_access_token
-from app.schemas.auth import AvatarUpdate, TokenResponse, UserPreferencesUpdate, UserResponse
+from app.schemas.auth import AvatarUpdate, SessionResponse, UserPreferencesUpdate, UserResponse
 from app.services.oauth import create_oauth_challenge
 
 router = APIRouter()
+
+
+def _session_max_age() -> int:
+    return settings.SESSION_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+
+
+def _set_session_cookie(response: Response, token: str) -> None:
+    response.headers["Cache-Control"] = "no-store, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.set_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        value=token,
+        max_age=_session_max_age(),
+        httponly=True,
+        secure=settings.SESSION_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+        path=settings.SESSION_COOKIE_PATH,
+        domain=settings.SESSION_COOKIE_DOMAIN,
+    )
+
+
+def _clear_session_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key=settings.SESSION_COOKIE_NAME,
+        httponly=True,
+        secure=settings.SESSION_COOKIE_SECURE,
+        samesite=settings.SESSION_COOKIE_SAMESITE,
+        path=settings.SESSION_COOKIE_PATH,
+        domain=settings.SESSION_COOKIE_DOMAIN,
+    )
 
 
 def _cookie_name(provider: str, kind: str) -> str:
@@ -78,7 +106,7 @@ async def _finish_login(
     code: str | None,
     state_value: str | None,
     provider_error: str | None,
-) -> TokenResponse | RedirectResponse:
+) -> SessionResponse | RedirectResponse:
     expected_state = request.cookies.get(_cookie_name(provider, "state"))
     verifier = request.cookies.get(_cookie_name(provider, "verifier"))
     if (
@@ -109,35 +137,30 @@ async def _finish_login(
     except AccountAccessDeniedError:
         if request.cookies.get(_cookie_name(provider, "response_mode")) == "frontend":
             redirect = RedirectResponse(
-                f"{settings.FRONTEND_AUTH_CALLBACK_URL}#error=access_denied",
+                f"{settings.FRONTEND_AUTH_CALLBACK_URL}?error=access_denied",
                 status_code=status.HTTP_302_FOUND,
             )
             _delete_oauth_cookies(redirect, provider)
             return redirect
         raise
-    access_token = create_access_token(user_id=user.id, email=user.email)
-    token_response = TokenResponse(
-        access_token=access_token,
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    # The provider token is used only to fetch identity during this callback.
+    access_token = auth.create_session_token(user)
+    session_response = SessionResponse(
+        expires_in=_session_max_age(),
         user=UserResponse.model_validate(user),
     )
     if request.cookies.get(_cookie_name(provider, "response_mode")) == "frontend":
-        fragment = urlencode(
-            {
-                "access_token": access_token,
-                "token_type": "bearer",
-                "expires_in": token_response.expires_in,
-            }
-        )
         redirect = RedirectResponse(
-            f"{settings.FRONTEND_AUTH_CALLBACK_URL}#{fragment}",
+            settings.FRONTEND_AUTH_CALLBACK_URL,
             status_code=status.HTTP_302_FOUND,
         )
+        _set_session_cookie(redirect, access_token)
         _delete_oauth_cookies(redirect, provider)
         return redirect
 
+    _set_session_cookie(response, access_token)
     _delete_oauth_cookies(response, provider)
-    return token_response
+    return session_response
 
 
 @router.get("/google/login", summary="Start Google login")
@@ -150,7 +173,7 @@ async def google_login(
     return _start_login("google", oauth, frontend=frontend)
 
 
-@router.get("/google/callback", response_model=TokenResponse, summary="Complete Google login")
+@router.get("/google/callback", response_model=SessionResponse, summary="Complete Google login")
 async def google_callback(
     request: Request,
     response: Response,
@@ -159,7 +182,7 @@ async def google_callback(
     code: str | None = Query(default=None),
     state_value: str | None = Query(default=None, alias="state"),
     error: str | None = Query(default=None),
-) -> TokenResponse | RedirectResponse:
+) -> SessionResponse | RedirectResponse:
     return await _finish_login(
         "google",
         request=request,
@@ -182,7 +205,7 @@ async def microsoft_login(
 
 @router.get(
     "/microsoft/callback",
-    response_model=TokenResponse,
+    response_model=SessionResponse,
     summary="Complete Microsoft login",
 )
 async def microsoft_callback(
@@ -193,7 +216,7 @@ async def microsoft_callback(
     code: str | None = Query(default=None),
     state_value: str | None = Query(default=None, alias="state"),
     error: str | None = Query(default=None),
-) -> TokenResponse | RedirectResponse:
+) -> SessionResponse | RedirectResponse:
     return await _finish_login(
         "microsoft",
         request=request,
@@ -204,6 +227,14 @@ async def microsoft_callback(
         state_value=state_value,
         provider_error=error,
     )
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, summary="Log out")
+async def logout(response: Response, current_user: CurrentUser, auth: AuthSvc) -> Response:
+    await auth.revoke_sessions(current_user)
+    _clear_session_cookie(response)
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
 
 
 @router.get("/me", response_model=UserResponse, summary="Get the authenticated user")

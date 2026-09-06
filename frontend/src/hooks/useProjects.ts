@@ -9,6 +9,8 @@ import type {
   Project,
   ProjectCreate,
   ProjectUpdate,
+  IssueReportCreate,
+  Notification,
 } from "@/types";
 
 /**
@@ -174,12 +176,35 @@ export function useClicksTrend(interval: "daily" | "weekly" | "monthly") { retur
 export function useActiveUsers(range: "7d" | "30d" | "all") { return useQuery({ queryKey: ["analytics", "active-users", range], queryFn: () => api.getActiveUsers(range) }); }
 export function useTopProjects() { return useQuery({ queryKey: ["analytics", "top-projects", 5], queryFn: () => api.getTopProjects(5) }); }
 export function useHealthSummary() { return useQuery({ queryKey: ["analytics", "health-summary"], queryFn: api.getHealthSummary, refetchInterval: 30_000 }); }
-export function useNotifications() { return useQuery({ queryKey: ["notifications"], queryFn: api.getNotifications }); }
-export function useUnreadNotificationCount() { return useQuery({ queryKey: ["notifications", "unread"], queryFn: api.getUnreadNotificationCount }); }
+export function useNotifications() { return useQuery({ queryKey: ["notifications"], queryFn: api.getNotifications, refetchInterval: 30_000 }); }
+export function useUnreadNotificationCount() { return useQuery({ queryKey: ["notifications", "unread"], queryFn: api.getUnreadNotificationCount, refetchInterval: 30_000 }); }
+export function useMarkAllNotificationsRead() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: api.markAllNotificationsRead,
+    onMutate: async () => {
+      await client.cancelQueries({ queryKey: ["notifications"] });
+      const previousCount = client.getQueryData<number>(["notifications", "unread"]);
+      const previousNotifications = client.getQueryData<Notification[]>(["notifications"]);
+      client.setQueryData(["notifications", "unread"], 0);
+      client.setQueryData<Notification[]>(["notifications"], (current) =>
+        current?.map((notification) => ({ ...notification, is_read: true })),
+      );
+      return { previousCount, previousNotifications };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousCount !== undefined) client.setQueryData(["notifications", "unread"], context.previousCount);
+      if (context?.previousNotifications) client.setQueryData(["notifications"], context.previousNotifications);
+    },
+    onSettled: () => client.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+}
 export function useWorkspaces() { return useQuery({ queryKey: ["workspaces"], queryFn: api.getWorkspaces }); }
+export function useImportSpreadsheet() { const client = useQueryClient(); return useMutation({ mutationFn: ({ workspaceId, file }: { workspaceId: string; file: File }) => api.importSpreadsheet(workspaceId, file), onSuccess: async () => { await client.invalidateQueries({ queryKey: ["projects"] }); await client.invalidateQueries({ queryKey: ["analytics"] }); } }); }
 export function useCreateTeam() { const client = useQueryClient(); return useMutation({ mutationFn: ({ workspaceId, name }: { workspaceId: string; name: string }) => api.createTeam(workspaceId, name), onSuccess: () => client.invalidateQueries({ queryKey: ["workspaces"] }) }); }
 export function useAddWorkspaceMember() { const client = useQueryClient(); return useMutation({ mutationFn: ({ workspaceId, email, role }: { workspaceId: string; email: string; role: string }) => api.addWorkspaceMember(workspaceId, email, role), onSuccess: () => client.invalidateQueries({ queryKey: ["workspaces"] }) }); }
 export function useRemoveWorkspaceMember() { const client = useQueryClient(); return useMutation({ mutationFn: ({ workspaceId, memberId }: { workspaceId: string; memberId: string }) => api.removeWorkspaceMember(workspaceId, memberId), onSuccess: () => client.invalidateQueries({ queryKey: ["workspaces"] }) }); }
+export function useCreateIssueReport() { const client = useQueryClient(); return useMutation({ mutationFn: (payload: IssueReportCreate) => api.createIssueReport(payload), onSuccess: async () => { await client.invalidateQueries({ queryKey: ["notifications"] }); } }); }
 
 export function useReorderLinks(search: string) {
   const client = useQueryClient();

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 
 from app.models.user import User
 from app.repositories.base import SQLAlchemyRepository
@@ -27,3 +27,11 @@ class UserRepository(SQLAlchemyRepository[User]):
 
     async def get_user(self, user_id: UUID) -> User | None:
         return await self.get(user_id)
+
+    async def increment_token_version(self, user: User) -> User:
+        await self.session.execute(
+            update(User).where(User.id == user.id).values(token_version=User.token_version + 1)
+        )
+        await self.session.flush()
+        await self.session.refresh(user)
+        return user

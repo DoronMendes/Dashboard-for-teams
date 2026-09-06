@@ -8,7 +8,7 @@ so swapping environments never requires touching application code.
 from functools import lru_cache
 from typing import Annotated, Any, Literal
 
-from pydantic import computed_field, field_validator
+from pydantic import computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -42,27 +42,28 @@ class Settings(BaseSettings):
 
     # --- Application JWT ---
     JWT_SECRET_KEY: str = "replace-with-a-long-random-secret"
-    JWT_ALGORITHM: Literal["HS256", "HS384", "HS512"] = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    JWT_ALGORITHM: Literal["HS256"] = "HS256"
+    SESSION_TOKEN_EXPIRE_DAYS: int = 30
+    SESSION_COOKIE_NAME: str = "project_dashboard_session"
+    SESSION_COOKIE_SECURE: bool = True
+    SESSION_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
+    SESSION_COOKIE_PATH: str = "/"
+    SESSION_COOKIE_DOMAIN: str | None = None
 
     # --- OAuth 2.0 / OpenID Connect ---
     OAUTH_COOKIE_SECURE: bool = False
     OAUTH_STATE_TTL_SECONDS: int = 600
-    FRONTEND_AUTH_CALLBACK_URL: str = "http://localhost:5173/auth/callback"
+    FRONTEND_AUTH_CALLBACK_URL: str = "http://127.0.0.1:5173/auth/callback"
     ALLOWED_EMAILS: Annotated[list[str], NoDecode] = []
 
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
-    GOOGLE_REDIRECT_URI: str = (
-        "http://127.0.0.1:8010/api/v1/auth/google/callback"
-    )
+    GOOGLE_REDIRECT_URI: str = "http://127.0.0.1:8010/api/v1/auth/google/callback"
 
     MICROSOFT_CLIENT_ID: str = ""
     MICROSOFT_CLIENT_SECRET: str = ""
     MICROSOFT_TENANT: str = "common"
-    MICROSOFT_REDIRECT_URI: str = (
-        "http://127.0.0.1:8010/api/v1/auth/microsoft/callback"
-    )
+    MICROSOFT_REDIRECT_URI: str = "http://127.0.0.1:8010/api/v1/auth/microsoft/callback"
 
     # --- CORS ---
     # NoDecode stops pydantic-settings from JSON-parsing the raw env value, so
@@ -89,6 +90,14 @@ class Settings(BaseSettings):
     @classmethod
     def _normalize_allowed_emails(cls, value: list[str]) -> list[str]:
         return sorted({email.strip().casefold() for email in value if email.strip()})
+
+    @model_validator(mode="after")
+    def _validate_production_session_security(self) -> "Settings":
+        if self.ENVIRONMENT == "production" and not self.SESSION_COOKIE_SECURE:
+            raise ValueError("SESSION_COOKIE_SECURE must be true in production")
+        if self.ENVIRONMENT == "production" and self.JWT_SECRET_KEY.startswith("replace-with-"):
+            raise ValueError("JWT_SECRET_KEY must be replaced in production")
+        return self
 
     @computed_field  # type: ignore[prop-decorator]
     @property

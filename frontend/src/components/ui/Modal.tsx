@@ -7,13 +7,14 @@ interface ModalProps {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  size?: "default" | "large";
 }
 
 /**
  * Accessible dialog: Escape closes, focus moves in on open and returns to the
  * trigger on close, and Tab is trapped inside while it's open.
  */
-export function Modal({ open, title, onClose, children }: ModalProps) {
+export function Modal({ open, title, onClose, children, size = "default" }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreFocusTo = useRef<HTMLElement | null>(null);
   const titleId = useId();
@@ -84,7 +85,7 @@ export function Modal({ open, title, onClose, children }: ModalProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative w-full max-w-lg rounded-[22px] border border-black/[0.06] bg-panel shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[modal-panel-in_220ms_cubic-bezier(0.16,1,0.3,1)]"
+        className={`relative w-full ${size === "large" ? "max-w-3xl" : "max-w-lg"} rounded-[22px] border border-black/[0.06] bg-panel shadow-[0_24px_70px_rgba(15,23,42,0.24)] animate-[modal-panel-in_220ms_cubic-bezier(0.16,1,0.3,1)]`}
       >
         <header className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
           <h2 id={titleId} className="font-display text-base font-semibold text-ink">

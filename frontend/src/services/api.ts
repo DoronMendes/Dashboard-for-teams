@@ -23,6 +23,10 @@ import type {
   ActiveUsersMetric,
   TopProjectMetric,
   HealthSummary,
+  SpreadsheetImportResult,
+  IssueReport,
+  IssueReportCreate,
+  IssueReportDetail,
 } from "@/types";
 
 export function getGoogleLoginUrl(): string {
@@ -35,12 +39,24 @@ export async function getCurrentUser(): Promise<User> {
   return data;
 }
 
+export async function logoutSession(): Promise<void> {
+  await apiClient.post("/auth/logout");
+}
+
 export async function updateUserAvatar(avatar: string | null): Promise<User> {
   return (await apiClient.put<User>("/auth/me/avatar", { avatar })).data;
 }
 
 export async function updateUserPreferences(preferences: UserPreferences): Promise<User> {
   return (await apiClient.put<User>("/auth/me/preferences", preferences)).data;
+}
+
+export async function importSpreadsheet(workspaceId: string, file: File): Promise<SpreadsheetImportResult> {
+  return (await apiClient.post<SpreadsheetImportResult>(
+    `/imports/spreadsheet?workspace_id=${encodeURIComponent(workspaceId)}`,
+    file,
+    { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }, timeout: 30_000 },
+  )).data;
 }
 
 export async function getProjects(params: ListProjectsParams = {}): Promise<Project[]> {
@@ -126,3 +142,5 @@ export async function getWorkspaces(): Promise<Workspace[]> { return (await apiC
 export async function createTeam(workspaceId: string, name: string): Promise<Team> { return (await apiClient.post<Team>(`/workspaces/${workspaceId}/teams`, { name })).data; }
 export async function addWorkspaceMember(workspaceId: string, email: string, role: string): Promise<void> { await apiClient.post(`/workspaces/${workspaceId}/invitations`, { email, role }); }
 export async function removeWorkspaceMember(workspaceId: string, memberId: string): Promise<void> { await apiClient.delete(`/workspaces/${workspaceId}/members/${memberId}`); }
+export async function createIssueReport(payload: IssueReportCreate): Promise<IssueReport> { return (await apiClient.post<IssueReport>("/issue-reports", payload)).data; }
+export async function getIssueReport(reportId: string): Promise<IssueReportDetail> { return (await apiClient.get<IssueReportDetail>(`/issue-reports/${reportId}`)).data; }

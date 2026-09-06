@@ -17,6 +17,14 @@ logging.basicConfig(
     level=logging.DEBUG if settings.DEBUG else logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
 )
+# Link health checks can generate hundreds of successful outbound HTTP log
+# entries. Keep application-level INFO messages while only surfacing warnings
+# and errors from the low-level HTTP client.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+# Uvicorn otherwise prints one line for every browser poll and API request.
+# Preserve startup/error output while keeping the terminal readable.
+logging.getLogger("uvicorn.access").disabled = True
 logger = logging.getLogger(__name__)
 
 

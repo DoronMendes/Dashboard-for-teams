@@ -26,3 +26,19 @@ class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     target_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
     is_read: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+
+
+class IssueReport(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "issue_reports"
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    reporter_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    category: Mapped[str] = mapped_column(String(32), nullable=False)
+    urgency: Mapped[str] = mapped_column(String(16), nullable=False, default="normal")
+    page_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="new")

@@ -7,6 +7,7 @@ from app.core.exceptions import (
     AccountAccessDeniedError,
     AccountLinkError,
 )
+from app.core.security import create_access_token
 from app.models.user import User
 from app.repositories.collaboration import CollaborationRepository
 from app.repositories.user import UserRepository
@@ -71,6 +72,19 @@ class AuthService:
             }
         )
         return await self._accept_invitations(user, invitations)
+
+    @staticmethod
+    def create_session_token(user: User) -> str:
+        """Create the local session after provider identity has been verified."""
+        return create_access_token(
+            user_id=user.id,
+            email=user.email,
+            token_version=user.token_version,
+        )
+
+    async def revoke_sessions(self, user: User) -> None:
+        """Immediately invalidate every application JWT issued for this user."""
+        await self.users.increment_token_version(user)
 
     async def _accept_invitations(self, user: User, invitations: list) -> User:
         if not self.collaboration:

@@ -14,8 +14,7 @@ export function AuthCallbackPage() {
     if (started.current) return;
     started.current = true;
 
-    const params = new URLSearchParams(window.location.hash.slice(1));
-    const accessToken = params.get("access_token");
+    const params = new URLSearchParams(window.location.search);
     const oauthError = params.get("error");
     window.history.replaceState(null, "", window.location.pathname);
 
@@ -24,12 +23,7 @@ export function AuthCallbackPage() {
       return;
     }
 
-    if (!accessToken) {
-      setError("הכניסה באמצעות Google לא החזירה אסימון גישה.");
-      return;
-    }
-
-    void completeLogin(accessToken)
+    void completeLogin()
       .then(() => navigate("/", { replace: true }))
       .catch(() => setError("הכניסה הושלמה, אך לא ניתן היה לאמת את החיבור."));
   }, [completeLogin, navigate]);

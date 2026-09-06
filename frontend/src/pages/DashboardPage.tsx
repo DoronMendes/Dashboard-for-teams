@@ -3,6 +3,7 @@ import { Activity, CheckCircle2, ChevronLeft, ChevronRight, CircleHelp, FolderKa
 import { useLocation } from "react-router";
 
 import { useToast } from "@/components/feedback/Toast";
+import { IssueReportModal } from "@/components/feedback/IssueReportModal";
 import { LinkForm } from "@/components/forms/LinkForm";
 import { ProjectForm } from "@/components/forms/ProjectForm";
 import { Header } from "@/components/layout/Header";
@@ -11,11 +12,12 @@ import { ContextPanel } from "@/components/layout/ContextPanel";
 import { AdminPanel } from "@/components/layout/AdminPanel";
 import { SettingsPanel } from "@/components/layout/FeaturePanels";
 import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
+import { SpreadsheetImportPanel } from "@/components/imports/SpreadsheetImportPanel";
 import { ProjectGrid } from "@/components/projects/ProjectGrid";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useDialogs } from "@/hooks/useDialogs";
-import { useActivity, useAnalytics, useCheckAllLinkHealth, useDeleteLink, useDeleteProject, useNotifications, useProjects, useUnreadNotificationCount, useUpdateProject, useWorkspaces } from "@/hooks/useProjects";
+import { useActivity, useAnalytics, useCheckAllLinkHealth, useDeleteLink, useDeleteProject, useMarkAllNotificationsRead, useNotifications, useProjects, useUnreadNotificationCount, useUpdateProject, useWorkspaces } from "@/hooks/useProjects";
 import { ApiError } from "@/services/apiClient";
 import { useAuth } from "@/auth/AuthContext";
 import type { UserPreferences } from "@/types";
@@ -44,6 +46,7 @@ export function DashboardPage() {
   const [theme, setTheme] = useState<"light" | "dark">(() => user?.theme ?? "light");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => user?.sidebar_collapsed ?? false);
   const [contextOpen, setContextOpen] = useState(false);
+  const [issueReportOpen, setIssueReportOpen] = useState(false);
   const [tagFilter, setTagFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [teamFilter, setTeamFilter] = useState("");
@@ -62,9 +65,10 @@ export function DashboardPage() {
   const { data: analytics } = useAnalytics();
   const { data: notifications } = useNotifications();
   const { data: unreadCount } = useUnreadNotificationCount();
+  const markAllNotificationsRead = useMarkAllNotificationsRead();
   const { data: workspaces } = useWorkspaces();
   const route = location.pathname;
-  const pageTitles: Record<string, [string, string]> = { "/": ["הפרויקטים שלנו", "Our projects"], "/bookmarks": ["הסימניות שלי", "My bookmarks"], "/analytics": ["אנליטיקס", "Analytics"], "/settings": ["הגדרות", "Settings"], "/admin": ["הרשאות וניהול", "Permissions / Admin"] };
+  const pageTitles: Record<string, [string, string]> = { "/": ["הפרויקטים שלנו", "Our projects"], "/bookmarks": ["הסימניות שלי", "My bookmarks"], "/analytics": ["אנליטיקס", "Analytics"], "/excel-import": ["ייבוא מאקסל", "Excel Import"], "/settings": ["הגדרות", "Settings"], "/admin": ["הרשאות וניהול", "Permissions / Admin"] };
   const pageTitle = pageTitles[route] ?? pageTitles["/"];
   const showProjects = route === "/" || route === "/bookmarks";
   const availableTags = [...new Set((projects ?? []).flatMap((project) => project.links.flatMap((link) => link.tags)))].sort();
@@ -144,7 +148,7 @@ export function DashboardPage() {
 
   return (
     <div className="flex min-h-dvh bg-[#EEF0ED]" dir={direction}>
-      <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} direction={direction} workspaces={workspaces ?? []} teamFilter={teamFilter} onTeamFilterChange={setTeamFilter} />
+      <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} onReportIssue={() => setIssueReportOpen(true)} direction={direction} workspaces={workspaces ?? []} teamFilter={teamFilter} onTeamFilterChange={setTeamFilter} />
       <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
       <Header
         search={search}
@@ -160,6 +164,9 @@ export function DashboardPage() {
         tags={availableTags}
         unreadCount={unreadCount ?? 0}
         notifications={notifications ?? []}
+        onNotificationsOpen={() => {
+          if ((unreadCount ?? 0) > 0 && !markAllNotificationsRead.isPending) markAllNotificationsRead.mutate();
+        }}
         theme={theme}
         onThemeChange={changeTheme}
       />
@@ -203,7 +210,7 @@ export function DashboardPage() {
           onAddLink={dialogs.addLink}
           onEditLink={dialogs.editLink}
           onDeleteLink={dialogs.deleteLink}
-        /> : route === "/admin" ? <AdminPanel workspaces={workspaces ?? []} direction={direction} /> : route === "/analytics" ? <AnalyticsDashboard direction={direction} /> : route === "/settings" ? <SettingsPanel direction={direction} onDirectionChange={changeDirection} viewMode={viewMode} onViewModeChange={changeViewMode} theme={theme} onThemeChange={changeTheme} /> : <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-20 text-center text-sm text-slate-400">{direction === "rtl" ? "אין עדיין נתונים להצגה." : "No data to display yet."}</div>}
+        /> : route === "/admin" ? <AdminPanel workspaces={workspaces ?? []} direction={direction} /> : route === "/analytics" ? <AnalyticsDashboard direction={direction} /> : route === "/excel-import" ? <SpreadsheetImportPanel workspaces={workspaces ?? []} direction={direction} /> : route === "/settings" ? <SettingsPanel direction={direction} onDirectionChange={changeDirection} viewMode={viewMode} onViewModeChange={changeViewMode} theme={theme} onThemeChange={changeTheme} /> : <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-20 text-center text-sm text-slate-400">{direction === "rtl" ? "אין עדיין נתונים להצגה." : "No data to display yet."}</div>}
       </main>
       <ContextPanel open={contextOpen} onClose={() => setContextOpen(false)} direction={direction} activity={activity} analytics={analytics} />
       </div>
@@ -224,6 +231,13 @@ export function DashboardPage() {
           {direction === "rtl" ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
         </button>
       )}
+
+      <IssueReportModal
+        open={issueReportOpen}
+        onClose={() => setIssueReportOpen(false)}
+        direction={direction}
+        workspaces={workspaces ?? []}
+      />
 
       {dialog.kind === "project-create" && (
         <ProjectForm open onClose={dialogs.close} />
