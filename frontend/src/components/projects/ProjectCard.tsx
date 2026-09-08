@@ -85,8 +85,8 @@ export function ProjectCard({
     <article
       ref={setNodeRef}
       style={style}
-      className={`group/card relative flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-black/[0.055] bg-white shadow-[0_10px_35px_rgba(15,23,42,0.055)] transition-[border-color,box-shadow,transform] duration-200 hover:border-black/[0.09] hover:shadow-[0_16px_42px_rgba(15,23,42,0.085)] ${links.length ? "h-[22rem]" : "h-auto"} ${
-        isDragging ? "rotate-1 shadow-xl ring-2 ring-indigo-200" : ""
+      className={`group/card relative flex min-h-0 flex-col overflow-hidden rounded-[22px] border border-black/[0.055] bg-white transition-[border-color,transform] duration-200 hover:border-black/[0.09] ${links.length ? "h-[22rem]" : "h-auto"} ${
+        isDragging ? "rotate-1 ring-2 ring-indigo-200" : ""
       }`}
     >
       <header className="project-card-header border-b border-slate-100 px-4 py-3">
@@ -112,7 +112,7 @@ export function ProjectCard({
               aria-pressed={project.is_pinned}
               className={`p-1 transition-colors ${
                 project.is_pinned
-                  ? "rounded-md bg-white text-indigo-600 shadow-sm"
+                  ? "rounded-md bg-white text-indigo-600"
                   : "rounded-md text-slate-400 hover:bg-white hover:text-indigo-600"
               }`}
             >
@@ -140,9 +140,9 @@ export function ProjectCard({
         </div>
         <h2 className="flex min-w-0 items-center gap-3 font-display text-lg font-extrabold tracking-[-0.025em] text-slate-950 lg:text-xl">
           {project.icon && (project.icon.startsWith("data:image/") ? (
-            <img src={project.icon} alt="" className="size-10 shrink-0 rounded-xl bg-white object-cover shadow-sm ring-1 ring-slate-200/70" />
+            <img src={project.icon} alt="" className="size-10 shrink-0 rounded-xl bg-white object-cover ring-1 ring-slate-200/70" />
           ) : (
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-xl shadow-sm ring-1 ring-slate-200/70" aria-hidden="true">{project.icon}</span>
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-xl ring-1 ring-slate-200/70" aria-hidden="true">{project.icon}</span>
           ))}
           <span className="min-w-0 break-words leading-tight">{project.name}</span>
         </h2>
@@ -180,7 +180,7 @@ export function ProjectCard({
           </DndContext>
         </div>
       ) : (
-        <button type="button" onClick={() => onAddLink(project)} className="m-4 flex min-h-28 flex-col items-center justify-center rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 p-4 text-sm text-slate-500 transition hover:border-blue-300 hover:bg-blue-50"><span className="grid size-9 place-items-center rounded-full bg-white text-[#0B3FC1] shadow-sm"><Plus className="size-5" /></span><strong className="mt-2 text-[#0B3FC1]">הוסף קישור ראשון</strong><span className="mt-1 text-xs text-slate-400">רכז כאן סביבת עבודה, מסמך או כלי</span></button>
+        <button type="button" onClick={() => onAddLink(project)} className="m-4 flex min-h-28 flex-col items-center justify-center rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 p-4 text-sm text-slate-500 transition hover:border-blue-300 hover:bg-blue-50"><span className="grid size-9 place-items-center rounded-full bg-white text-[#0B3FC1]"><Plus className="size-5" /></span><strong className="mt-2 text-[#0B3FC1]">הוסף קישור ראשון</strong><span className="mt-1 text-xs text-slate-400">רכז כאן סביבת עבודה, מסמך או כלי</span></button>
       )}
 
       {links.length > 0 && <footer className="mt-auto px-3 py-3">

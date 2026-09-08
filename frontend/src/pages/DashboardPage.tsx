@@ -50,6 +50,7 @@ export function DashboardPage() {
   const [tagFilter, setTagFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [teamFilter, setTeamFilter] = useState("");
+  const [healthFilter, setHealthFilter] = useState<"all" | "healthy" | "error">("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">(() => user?.view_mode ?? "grid");
   const location = useLocation();
   const debouncedSearch = useDebouncedValue(search, 250);
@@ -162,6 +163,9 @@ export function DashboardPage() {
         categoryFilter={categoryFilter}
         onCategoryFilterChange={setCategoryFilter}
         tags={availableTags}
+        workspaces={workspaces ?? []}
+        teamFilter={teamFilter}
+        onTeamFilterChange={setTeamFilter}
         unreadCount={unreadCount ?? 0}
         notifications={notifications ?? []}
         onNotificationsOpen={() => {
@@ -172,11 +176,11 @@ export function DashboardPage() {
       />
       <div className="flex flex-1 flex-col xl:flex-row">
       <main className="workspace-canvas min-w-0 flex-1 bg-[#EEF0ED] px-4 py-6 lg:px-8 lg:py-10">
-        <div className="mb-8 flex flex-wrap items-end gap-4"><h1 className="font-display text-3xl font-extrabold tracking-[-0.035em] text-slate-950 lg:text-4xl">{direction === "rtl" ? pageTitle[0] : pageTitle[1]}</h1>{showProjects && <div className="ms-auto flex items-center gap-0.5 rounded-xl border border-black/[0.05] bg-white p-0.5 shadow-[0_8px_24px_rgba(15,23,42,0.05)]"><button onClick={() => changeViewMode("grid")} className={`grid size-7 place-items-center rounded-lg ${viewMode === "grid" ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:bg-slate-50"}`} aria-label="Grid view"><LayoutGrid className="size-3.5" /></button><button onClick={() => changeViewMode("list")} className={`grid size-7 place-items-center rounded-lg ${viewMode === "list" ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:bg-slate-50"}`} aria-label="List view"><List className="size-3.5" /></button></div>}</div>
+        <div className="mb-8 flex flex-wrap items-end gap-4"><h1 className="font-display text-3xl font-extrabold tracking-[-0.035em] text-slate-950 lg:text-4xl">{direction === "rtl" ? pageTitle[0] : pageTitle[1]}</h1>{showProjects && <div className="ms-auto flex items-center gap-0.5 rounded-xl border border-black/[0.05] bg-white p-0.5"><button onClick={() => changeViewMode("grid")} className={`grid size-7 place-items-center rounded-lg ${viewMode === "grid" ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:bg-slate-50"}`} aria-label="Grid view"><LayoutGrid className="size-3.5" /></button><button onClick={() => changeViewMode("list")} className={`grid size-7 place-items-center rounded-lg ${viewMode === "list" ? "bg-slate-100 text-slate-900" : "text-slate-400 hover:bg-slate-50"}`} aria-label="List view"><List className="size-3.5" /></button></div>}</div>
         {showProjects && <div className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard icon={FolderKanban} label={direction === "rtl" ? "כל הפרויקטים" : "Total projects"} value={dashboardSummary.projects} featured />
-          <SummaryCard icon={CheckCircle2} label={direction === "rtl" ? "קישורים תקינים" : "Healthy links"} value={dashboardSummary.healthy} tone="emerald" />
-          <SummaryCard icon={XCircle} label={direction === "rtl" ? "קישורים עם שגיאה" : "Links with errors"} value={dashboardSummary.error} tone="rose" />
+          <SummaryCard icon={FolderKanban} label={direction === "rtl" ? "כל הפרויקטים" : "Total projects"} value={dashboardSummary.projects} featured active={healthFilter === "all"} onClick={() => setHealthFilter("all")} />
+          <SummaryCard icon={CheckCircle2} label={direction === "rtl" ? "קישורים תקינים" : "Healthy links"} value={dashboardSummary.healthy} tone="emerald" active={healthFilter === "healthy"} onClick={() => setHealthFilter((current) => current === "healthy" ? "all" : "healthy")} />
+          <SummaryCard icon={XCircle} label={direction === "rtl" ? "קישורים עם שגיאה" : "Links with errors"} value={dashboardSummary.error} tone="rose" active={healthFilter === "error"} onClick={() => setHealthFilter((current) => current === "error" ? "all" : "error")} />
           <SummaryCard icon={CircleHelp} label={direction === "rtl" ? "טרם נבדקו" : "Not checked yet"} value={dashboardSummary.unchecked} tone="slate" />
         </div>}
         {showProjects ? <ProjectGrid
@@ -185,6 +189,7 @@ export function DashboardPage() {
           categoryFilter={categoryFilter}
           bookmarkedOnly={route === "/bookmarks"}
           teamFilter={teamFilter}
+          healthFilter={healthFilter}
           search={debouncedSearch}
           onClearSearch={() => setSearch("")}
           onCreateProject={dialogs.createProject}
@@ -220,7 +225,7 @@ export function DashboardPage() {
         <button
           type="button"
           onClick={() => setContextOpen(true)}
-          className={`fixed top-1/2 z-30 grid h-11 w-7 -translate-y-1/2 place-items-center border border-slate-200 bg-white text-slate-400 shadow-sm transition-colors hover:bg-indigo-50 hover:text-indigo-700 ${
+          className={`fixed top-1/2 z-30 grid h-11 w-7 -translate-y-1/2 place-items-center border border-slate-200 bg-white text-slate-400 transition-colors hover:bg-indigo-50 hover:text-indigo-700 ${
             direction === "rtl"
               ? "left-0 rounded-r-xl border-l-0"
               : "right-0 rounded-l-xl border-r-0"
@@ -332,18 +337,42 @@ export function DashboardPage() {
           }}
         />
       )}
-      <button className="fixed bottom-5 end-5 z-20 grid size-12 place-items-center rounded-2xl bg-slate-900 text-white shadow-xl md:hidden" aria-label="Activity"><Activity className="size-5" /></button>
+      <button className="fixed bottom-5 end-5 z-20 grid size-12 place-items-center rounded-2xl bg-slate-900 text-white md:hidden" aria-label="Activity"><Activity className="size-5" /></button>
     </div>
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, featured = false, tone = "slate" }: { icon: typeof Activity; label: string; value: number; featured?: boolean; tone?: "emerald" | "rose" | "slate" }) {
-  const toneClasses = tone === "emerald" ? "bg-emerald-50 text-emerald-700" : tone === "rose" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500";
-  return <section className={`rounded-[18px] p-5 ${featured ? "bg-[#0B3FC1] text-white shadow-[0_16px_34px_rgba(11,63,193,0.22)]" : "border border-black/[0.045] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)]"}`}>
+function SummaryCard({ icon: Icon, label, value, featured = false, tone = "slate", onClick, active = false }: { icon: typeof Activity; label: string; value: number; featured?: boolean; tone?: "emerald" | "rose" | "slate"; onClick?: () => void; active?: boolean }) {
+  const toneClasses = tone === "emerald" ? "bg-emerald-50 text-emerald-700" : tone === "rose" ? "bg-rose-100 text-rose-700" : "bg-slate-100 text-slate-500";
+  const cardClasses = featured
+    ? "bg-[#0B3FC1] text-white"
+    : tone === "rose"
+      ? "border border-[#FECACA] bg-[#FEF2F2]"
+      : "border border-black/[0.045] bg-white";
+  const activeClasses = active
+    ? featured
+      ? "ring-2 ring-blue-500 ring-offset-2"
+      : tone === "emerald"
+        ? "ring-2 ring-emerald-400 ring-offset-2"
+        : "ring-2 ring-rose-400 ring-offset-2"
+    : "";
+  return <section
+    className={`rounded-[18px] p-5 ${cardClasses} ${onClick ? "cursor-pointer" : ""} ${activeClasses}`}
+    onClick={onClick}
+    role={onClick ? "button" : undefined}
+    tabIndex={onClick ? 0 : undefined}
+    aria-pressed={onClick ? active : undefined}
+    onKeyDown={onClick ? (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        onClick();
+      }
+    } : undefined}
+  >
     <div className="flex min-h-20 items-center justify-between gap-4">
-      <span className={`self-start pt-2 text-xs font-bold ${featured ? "text-blue-100" : "text-slate-400"}`}>{label}</span>
+      <span className={`self-start pt-2 text-xs font-bold ${featured ? "text-blue-100" : tone === "rose" ? "text-rose-700" : "text-slate-400"}`}>{label}</span>
       <div className="flex shrink-0 items-center gap-3">
-        <p className={`font-display text-4xl font-extrabold tracking-tight ${featured ? "text-white" : "text-slate-950"}`}>{value}</p>
+        <p className={`font-display text-4xl font-extrabold tracking-tight ${featured ? "text-white" : tone === "rose" ? "text-rose-700" : "text-slate-950"}`}>{value}</p>
         <span className={`grid size-10 place-items-center rounded-xl ${featured ? "bg-white/15 text-white" : toneClasses}`}><Icon className="size-5" /></span>
       </div>
     </div>

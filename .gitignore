@@ -10,6 +10,14 @@ repo_structure.txt
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+credentials*.json
+service-account*.json
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/

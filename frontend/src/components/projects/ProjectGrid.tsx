@@ -28,6 +28,7 @@ interface ProjectGridProps {
   categoryFilter?: string;
   bookmarkedOnly?: boolean;
   teamFilter?: string;
+  healthFilter: "all" | "healthy" | "error";
   search: string;
   onClearSearch: () => void;
   onCreateProject: () => void;
@@ -45,6 +46,7 @@ export function ProjectGrid({
   categoryFilter = "",
   bookmarkedOnly = false,
   teamFilter = "",
+  healthFilter,
   search,
   onClearSearch,
   onCreateProject,
@@ -58,7 +60,21 @@ export function ProjectGrid({
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
-  const visibleProjects = (projects ?? []).filter((project) => !teamFilter || project.team_id === teamFilter).map((project) => ({ ...project, links: project.links.filter((link) => (!tagFilter || link.tags.includes(tagFilter)) && (!categoryFilter || link.category === categoryFilter) && (!bookmarkedOnly || link.is_bookmarked)) })).filter((project) => !tagFilter && !categoryFilter && !bookmarkedOnly || project.links.length > 0);
+  const visibleProjects = (projects ?? [])
+    .filter((project) => !teamFilter || project.team_id === teamFilter)
+    .map((project) => ({
+      ...project,
+      links: project.links.filter((link) =>
+        (!tagFilter || link.tags.includes(tagFilter))
+        && (!categoryFilter || link.category === categoryFilter)
+        && (!bookmarkedOnly || link.is_bookmarked)
+        && (healthFilter === "all" || link.health_status === healthFilter)
+      ),
+    }))
+    .filter((project) =>
+      (!tagFilter && !categoryFilter && !bookmarkedOnly && healthFilter === "all")
+      || project.links.length > 0
+    );
 
   function handleProjectDragEnd(event: DragEndEvent) {
     if (!projects) return;
@@ -125,6 +141,24 @@ export function ProjectGrid({
         <StatePanel
           title="עדיין לא נשמרו סימניות"
           detail="קישורים שתסמן כסימניה יופיעו כאן לגישה מהירה."
+        />
+      );
+    }
+
+    if (healthFilter === "error") {
+      return (
+        <StatePanel
+          title="לא נמצאו קישורים עם שגיאה"
+          detail="כל הקישורים המוצגים כרגע תקינים או שטרם נבדקו."
+        />
+      );
+    }
+
+    if (healthFilter === "healthy") {
+      return (
+        <StatePanel
+          title="לא נמצאו קישורים תקינים"
+          detail="אין קישורים תקינים התואמים למסננים הנוכחיים."
         />
       );
     }

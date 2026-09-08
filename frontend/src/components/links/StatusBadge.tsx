@@ -4,13 +4,6 @@ import { Globe2 } from "lucide-react";
 
 import type { Link } from "@/types";
 
-const STATUS_STYLES = {
-  healthy: "shadow-[0_0_7px_rgba(0,210,120,0.65)]",
-  warning: "shadow-[0_0_7px_rgba(255,174,0,0.65)]",
-  error: "shadow-[0_0_7px_rgba(255,35,80,0.65)]",
-  checking: "shadow-[0_0_6px_rgba(100,116,139,0.45)]",
-} as const;
-
 const ORB_COLORS = { healthy: "#00c86f", warning: "#ffad00", error: "#ff2054", checking: "#64748b" } as const;
 
 const STATUS_LABELS = {
@@ -95,7 +88,7 @@ export function StatusBadge({ link, overlay = false }: { link: Link; overlay?: b
   return (
     <span
       ref={anchorRef}
-      className={overlay ? "absolute -bottom-0.5 -end-0.5 inline-flex rounded-full bg-white p-[2px] shadow-sm" : "status-orb-anchor relative inline-flex shrink-0 items-center"}
+      className={overlay ? "absolute -bottom-0.5 -end-0.5 inline-flex rounded-full bg-white p-[2px]" : "status-orb-anchor relative inline-flex shrink-0 items-center"}
       tabIndex={0}
       aria-label={statusDetail}
       aria-describedby={visible ? tooltipId : undefined}
@@ -104,12 +97,12 @@ export function StatusBadge({ link, overlay = false }: { link: Link; overlay?: b
       onFocus={showTooltip}
       onBlur={() => setVisible(false)}
     >
-      {overlay ? <span style={{ backgroundColor: ORB_COLORS[link.health_status] }} className={`inline-block size-2.5 rounded-full ${STATUS_STYLES[link.health_status]}`} /> : <span style={{ "--orb-color": ORB_COLORS[link.health_status] } as CSSProperties} className={`status-globe mr-1.5 grid size-3.5 place-items-center rounded-full ${STATUS_STYLES[link.health_status]}`}><Globe2 className="size-3" strokeWidth={2.1} /></span>}
+      {overlay ? <span style={{ backgroundColor: ORB_COLORS[link.health_status] }} className="inline-block size-2.5 rounded-full" /> : <span style={{ "--orb-color": ORB_COLORS[link.health_status] } as CSSProperties} className="status-globe mr-1.5 grid size-3.5 place-items-center rounded-full"><Globe2 className="size-3" strokeWidth={2.1} /></span>}
       {visible && createPortal(
         <span
           id={tooltipId}
           role="tooltip"
-          className="pointer-events-none fixed z-[200] w-max max-w-[248px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-right text-[11px] leading-5 text-white shadow-xl"
+          className="pointer-events-none fixed z-[200] w-max max-w-[248px] rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-right text-[11px] leading-5 text-white"
           style={{ left: position.left, top: position.top, transform: position.above ? "translateY(-100%)" : undefined }}
           dir="rtl"
         >
