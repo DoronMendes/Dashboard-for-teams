@@ -16,7 +16,7 @@ export function LoginPage() {
         <div className="border-b border-slate-100 px-7 py-7">
           <div className="flex items-center gap-4">
             <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-blue-50 p-1.5 ring-1 ring-blue-100">
-              <img src="/dashboard-for-teams-logo.webp" alt="לוגו הארגון" className="size-full object-contain" />
+              <img src="/dashboard-for-teams-logo.webp" alt="Dashboard for Teams" className="size-full object-contain" />
             </span>
             <div>
               <p className="text-xs font-extrabold tracking-wide text-[#0B3FC1]">לוח הפרויקטים</p>
